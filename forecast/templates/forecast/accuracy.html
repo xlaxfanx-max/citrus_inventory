@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Model validation{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div><p class="eyebrow">Decision quality</p><h2 class="screen-title">Model validation {% if plant %}· {{ plant.code }}{% endif %}</h2></div>
+  {% if plants %}<form method="get"><select name="plant" onchange="this.form.submit()">{% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} {{ p.name }}</option>{% endfor %}</select></form>{% endif %}
+</div>
+<p class="muted">Schedule alignment compares recommended dates with when management chose to pack; it is not biological forecast accuracy. Direct validation comes from observed color and decay recorded at packout. Fresh percent is split by whether the lot packed on or before the model date.</p>
+<p class="flag {% if outcome_labels %}ok{% else %}amber{% endif %}">{{ outcome_labels }} of {{ rows|length }} packed lots have a direct color or decay label at packout.</p>
+{% if not enough %}<p class="flag amber">{{ rows|length }} packed lots so far; the acceptance target is 20 before reading much into these numbers.</p>{% endif %}
+<div class="tiles">
+  <div class="tile"><div class="num">{{ model_mae|default_if_none:'—' }}</div><div class="label">Model schedule difference, days (n={{ model_n }})</div></div>
+  <div class="tile"><div class="num">{{ foreman_mae|default_if_none:'—' }}</div><div class="label">Foreman schedule difference, days (n={{ foreman_n }})</div></div>
+  <div class="tile"><div class="num">{{ on_time.fresh_pct|default_if_none:'—' }}%</div><div class="label">Fresh, packed by model date (n={{ on_time.n }})</div></div>
+  <div class="tile"><div class="num">{{ late.fresh_pct|default_if_none:'—' }}%</div><div class="label">Fresh, packed after model date (n={{ late.n }})</div></div>
+</div>
+<h2>Prediction data readiness</h2>
+<p class="muted">Coverage is measured per lot. Treatments are shown separately because untreated lots are valid observations, not missing data.</p>
+<div class="tiles">
+  <div class="tile"><div class="num">{{ condition_readings }}</div><div class="label">Room-condition readings</div></div>
+  <div class="tile"><div class="num">{{ treatment_events }}</div><div class="label">Recorded treatment events</div></div>
+</div>
+<div class="table-wrap"><table>
+  <thead><tr><th>Signal</th><th>Lots covered</th><th>Coverage</th><th>Why it matters</th></tr></thead>
+  <tbody>{% for item in readiness %}<tr>
+    <td><strong>{{ item.label }}</strong></td><td>{{ item.count }}/{{ item.total }}</td>
+    <td style="min-width:150px"><progress value="{{ item.percent }}" max="100">{{ item.percent }}%</progress> {{ item.percent }}%</td>
+    <td class="muted" style="white-space:normal">{{ item.why }}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+<h2>Packed lots</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Lot</th><th>Grower</th><th>Received</th><th>Packed</th><th>Model pack by</th><th>Model diff</th><th>Foreman pack by</th><th>Foreman diff</th><th>Fresh %</th><th>Observed color</th><th>Observed decay</th><th>Downgrade reason</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td><a href="{% url 'lots:lot_detail' r.lot.pk %}">{{ r.lot.lot_no }}</a></td><td>{{ r.lot.grower.name }}</td><td>{{ r.lot.receive_date }}</td><td>{{ r.lot.packed_date }}</td>
+      <td>{% if r.pred %}{{ r.pred.pack_by_date }} <span class="muted small">{{ r.pred.confidence }}</span>{% else %}<span class="muted">no prediction</span>{% endif %}</td>
+      <td>{% if r.model_err is not None %}{{ r.model_err|stringformat:'+d' }}d{% else %}—{% endif %}</td>
+      <td>{% if r.sample %}{{ r.sample.foreman_pack_by_date }}{% else %}<span class="muted">no sample</span>{% endif %}</td>
+      <td>{% if r.foreman_err is not None %}{{ r.foreman_err|stringformat:'+d' }}d{% else %}—{% endif %}</td>
+      <td>{% if r.fresh_pct is not None %}{{ r.fresh_pct }}{% if r.on_time %} <span class="flag ok">on time</span>{% elif r.on_time is False %} <span class="flag red">late</span>{% endif %}{% else %}—{% endif %}</td>
+      <td>{% if r.packout_color %}<span class="chip {{ r.packout_color }}">{{ r.packout_color }}</span>{% else %}—{% endif %}</td><td>{{ r.packout_decay_pct|default_if_none:'—' }}{% if r.packout_decay_pct is not None %}%{% endif %}</td><td>{{ r.downgrade_reason|default:'—' }}</td></tr>
+  {% empty %}<tr><td colspan="12" class="muted">No packed lots yet. Import a packout CSV.</td></tr>{% endfor %}
+  </tbody></table></div>
+<p class="muted small">Error = predicted pack-by minus actual pack date. Negative means the prediction was earlier than the actual pack (conservative); positive means the lot packed before the prediction said it had to.</p>
+{% endblock %}

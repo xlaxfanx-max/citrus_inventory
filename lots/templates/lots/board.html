@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}Packing plan{% endblock %}
+{% block content %}
+
+<div class="toolbar spread" style="align-items:flex-start">
+  <div>
+    <p class="eyebrow">{% if plant %}{{ plant.code }} · {{ plant.name }}{% else %}All plants{% endif %}</p>
+    <h2 class="screen-title">Packing plan</h2>
+    <p class="lede">The next decisions for inventory in storage, ranked by urgency.</p>
+  </div>
+  {% if is_gm and plant %}<a class="btn ghost small-btn" href="{% url 'forecast:report_preview' plant.code %}">Preview Monday report</a>{% endif %}
+</div>
+
+<form method="get" class="filter-bar" aria-label="Filter packing plan">
+  <input type="hidden" name="attention" value="{{ attention }}">
+  {% if plants %}
+    <div><label for="plant-filter">Plant</label><select id="plant-filter" name="plant">
+      {% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}
+    </select></div>
+  {% endif %}
+  <div><label for="room-filter">Room</label><select id="room-filter" name="room">
+    <option value="">All rooms</option>
+    {% for r in rooms %}<option value="{{ r.id }}" {% if room_id == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+  </select></div>
+  <div class="grow"><label for="plan-search">Search inventory</label><input id="plan-search" type="search" name="q" value="{{ query }}" placeholder="Lot, grower, block, or room"></div>
+  <button class="btn" type="submit">Apply</button>
+  <a class="btn soft" href="{% url 'lots:board' %}{% if plants and plant %}?plant={{ plant.code }}{% endif %}">Reset</a>
+</form>
+
+<div class="tiles" aria-label="Plan summary">
+  <div class="tile"><div class="num">{{ total_rows }}</div><div class="label">Lots in view</div></div>
+  <div class="tile red"><div class="num">{{ due_bins_7|floatformat:1 }}</div><div class="label">Known bins due in 7 days{% if due_bins_unknown %} · {{ due_bins_unknown }} lot{{ due_bins_unknown|pluralize }} unknown{% endif %}</div></div>
+  <div class="tile red"><div class="num">{{ n_decay }}</div><div class="label">Decay risks</div></div>
+  <div class="tile amber"><div class="num">{{ n_overdue }}</div><div class="label">Sample checks due</div></div>
+  <div class="tile amber"><div class="num">{{ n_failed }}</div><div class="label">Photos to retake</div></div>
+</div>
+
+<h2>Needs attention</h2>
+<nav class="filters" aria-label="Attention filters">
+  <a class="filter-chip {% if attention == 'all' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=all">All <span>{{ count_all }}</span></a>
+  <a class="filter-chip {% if attention == 'due' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=due">Pack ≤7 days <span>{{ count_due }}</span></a>
+  <a class="filter-chip {% if attention == 'decay' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=decay">Decay <span>{{ count_decay }}</span></a>
+  <a class="filter-chip {% if attention == 'sample' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=sample">Sample due <span>{{ count_sample }}</span></a>
+  <a class="filter-chip {% if attention == 'retake' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=retake">Retake <span>{{ count_retake }}</span></a>
+</nav>
+
+<div class="table-wrap desktop-only">
+<table>
+  <thead><tr>
+    <th>Priority</th><th>Lot / grower</th><th>Inventory</th><th>Decision signal</th><th>Pack window</th><th>Last check</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr class="{{ r.urgency }}">
+      <td><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span></td>
+      <td><a href="{% url 'lots:lot_detail' r.lot.pk %}"><strong>{{ r.lot.lot_no }}</strong></a>
+        {% if r.lot.is_partially_packed %}<span class="flag grey">partial</span>{% endif %}<br>
+        <span class="small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></td>
+      <td>{% if r.lot.bins_remaining is not None %}<strong>{{ r.lot.bins_remaining|floatformat:1 }} bins</strong>{% else %}<span class="flag amber">quantity unknown</span>{% endif %}<br>
+        <span class="muted small">{{ r.lot.current_room|default:'No room' }} · {{ r.lot.weeks_in_storage }} wk stored</span></td>
+      <td>{% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.get_stage_display }}</span>
+          {% if r.pred.decay_flag %}<span class="flag red">{{ r.pred.decay_pct|floatformat:1 }}% decay</span>{% endif %}
+          <br><span class="muted small">{{ r.pred.confidence }} confidence{% if r.pred.confidence == 'low' %} · estimated color{% endif %}</span>
+        {% elif r.photo_pending or r.photo_processing %}<span class="muted">Photo scoring in progress</span>
+        {% else %}<span class="muted">No forecast yet</span>{% endif %}</td>
+      <td>{% if r.pred and r.pred.pack_by_date %}<strong>{{ r.pred.pack_by_date|date:'M j' }}</strong><br>
+          <span class="small {% if r.urgency == 'red' %}flag red{% else %}muted{% endif %}">{% if r.overdue_days %}{{ r.overdue_days }} day{{ r.overdue_days|pluralize }} overdue{% else %}{{ r.days_to_pack_by }} day{{ r.days_to_pack_by|pluralize }} remaining{% endif %}</span>
+        {% else %}<span class="muted">Not available</span>{% endif %}</td>
+      <td>{% if r.sample %}<strong>{{ r.days_since_sample }}d ago</strong><br><span class="muted small">Foreman: {{ r.sample.get_foreman_color_display }}, {{ r.sample.foreman_pack_within_weeks }} wk</span>
+        {% else %}<span class="flag amber">Never sampled</span>{% endif %}</td>
+      <td>{% if is_foreman and r.priority == 'Retake photo' %}<a class="btn small-btn" href="{% url 'sampling:capture' r.lot.pk %}">Retake</a>
+        {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn small-btn" href="{% url 'sampling:capture' r.lot.pk %}">Sample</a>
+        {% else %}<a class="btn ghost small-btn" href="{% url 'lots:lot_detail' r.lot.pk %}">Review</a>{% endif %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No lots match this view. Clear a filter to see the full packing plan.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="lot-cards mobile-only">
+  {% for r in rows %}
+  <article class="card lot-card">
+    <div class="lot-card-head">
+      <div><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span><h3 style="margin-top:.45rem">Lot {{ r.lot.lot_no }}</h3><span class="muted small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></div>
+      {% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.stage }}</span>{% endif %}
+    </div>
+    <div class="meta-grid">
+      <div><span class="metric-label">Inventory</span><span class="metric-value">{% if r.lot.bins_remaining is not None %}{{ r.lot.bins_remaining|floatformat:1 }} bins{% else %}Unknown{% endif %}</span><span class="muted small">{{ r.lot.current_room|default:'No room' }}</span></div>
+      <div><span class="metric-label">Pack window</span><span class="metric-value">{% if r.pred and r.pred.pack_by_date %}{{ r.pred.pack_by_date|date:'M j' }}{% else %}Not available{% endif %}</span>{% if r.pred and r.pred.pack_by_date %}<span class="muted small">{% if r.overdue_days %}{{ r.overdue_days }}d overdue{% else %}{{ r.days_to_pack_by }}d remaining{% endif %}</span>{% endif %}</div>
+      <div><span class="metric-label">Last check</span><span class="metric-value">{% if r.sample %}{{ r.days_since_sample }}d ago{% else %}Never{% endif %}</span></div>
+      <div><span class="metric-label">Risk</span><span class="metric-value">{% if r.pred and r.pred.decay_flag %}{{ r.pred.decay_pct|floatformat:1 }}% decay{% else %}No decay flag{% endif %}</span></div>
+    </div>
+    <div class="toolbar" style="margin:.85rem 0 0">
+      {% if is_foreman and r.priority == 'Retake photo' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Retake photo</a>
+      {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Sample lot</a>{% endif %}
+      <a class="btn ghost" href="{% url 'lots:lot_detail' r.lot.pk %}">Open details</a>
+    </div>
+  </article>
+  {% empty %}<div class="card muted">No lots match this view. Clear a filter to see the full packing plan.</div>{% endfor %}
+</div>
+
+<p class="muted small">Pack dates are planning guidance. Open a lot for CCI history, drift, photos, and the full audit trail.</p>
+
+<details class="planning-details">
+  <summary>Capacity outlook · next 8 weeks</summary>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Week</th><th>Lots due</th><th>Known bins</th><th>Unknown quantities</th><th>Plant capacity</th><th>Status</th></tr></thead>
+    <tbody>{% for b in capacity_projection %}
+      <tr{% if b.over_capacity %} class="red"{% endif %}><td>{{ b.start|date:'M j' }}–{{ b.end|date:'M j' }}</td><td>{{ b.lots }}</td><td>{{ b.known_bins|floatformat:1 }}</td><td>{{ b.unknown_bins }} lot{{ b.unknown_bins|pluralize }}</td>
+        <td>{% if b.capacity is not None %}{{ b.capacity|floatformat:1 }} bins{% else %}<span class="muted">Not configured</span>{% endif %}</td>
+        <td>{% if b.over_capacity %}<span class="flag red">Over capacity</span>{% elif b.capacity is not None %}<span class="flag ok">Within capacity</span>{% else %}—{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</details>
+{% endblock %}

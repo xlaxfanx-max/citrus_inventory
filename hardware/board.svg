@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24.0in" height="18.0in" viewBox="0 0 24.0 18.0">
+<rect x="0" y="0" width="24.0" height="18.0" fill="#0c0c0c"/>
+<rect x="0.200" y="0.200" width="2.600" height="2.600" fill="#fff"/>
+<rect x="0.5" y="0.5" width="2.0" height="2.0" fill="#000"/>
+<rect x="0.8333" y="0.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.5000" y="0.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.8333" y="0.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.1667" y="1.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.8333" y="1.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.5000" y="1.5000" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.8333" y="1.5000" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.5000" y="1.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<text x="1.500" y="2.980" font-family="Helvetica, Arial, sans-serif" font-size="0.14" fill="#777" text-anchor="middle">id 0</text>
+<rect x="21.200" y="0.200" width="2.600" height="2.600" fill="#fff"/>
+<rect x="21.5" y="0.5" width="2.0" height="2.0" fill="#000"/>
+<rect x="21.8333" y="1.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.1667" y="1.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.5000" y="1.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.8333" y="1.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="21.8333" y="1.5000" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.8333" y="1.5000" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="21.8333" y="1.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.5000" y="1.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<text x="22.500" y="2.980" font-family="Helvetica, Arial, sans-serif" font-size="0.14" fill="#777" text-anchor="middle">id 1</text>
+<rect x="21.200" y="15.200" width="2.600" height="2.600" fill="#fff"/>
+<rect x="21.5" y="15.5" width="2.0" height="2.0" fill="#000"/>
+<rect x="22.5000" y="15.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.8333" y="15.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.5000" y="16.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.8333" y="16.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.5000" y="16.5000" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="21.8333" y="16.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.1667" y="16.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="22.8333" y="16.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<text x="22.500" y="17.980" font-family="Helvetica, Arial, sans-serif" font-size="0.14" fill="#777" text-anchor="middle">id 2</text>
+<rect x="0.200" y="15.200" width="2.600" height="2.600" fill="#fff"/>
+<rect x="0.5" y="15.5" width="2.0" height="2.0" fill="#000"/>
+<rect x="0.8333" y="15.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.8333" y="15.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="0.8333" y="16.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.8333" y="16.1667" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.1667" y="16.5000" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.1667" y="16.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<rect x="1.5000" y="16.8333" width="0.3333" height="0.3333" fill="#fff"/>
+<text x="1.500" y="17.980" font-family="Helvetica, Arial, sans-serif" font-size="0.14" fill="#777" text-anchor="middle">id 3</text>
+<rect x="4.000" y="0.500" width="2.000" height="1.500" fill="rgb(48,48,48)"/>
+<text x="5.000" y="2.220" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">grey_20 rgb(48,48,48)</text>
+<rect x="6.800" y="0.500" width="2.000" height="1.500" fill="rgb(82,82,82)"/>
+<text x="7.800" y="2.220" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">grey_35 rgb(82,82,82)</text>
+<rect x="9.600" y="0.500" width="2.000" height="1.500" fill="rgb(119,119,119)"/>
+<text x="10.600" y="2.220" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">grey_50 rgb(119,119,119)</text>
+<rect x="12.400" y="0.500" width="2.000" height="1.500" fill="rgb(158,158,158)"/>
+<text x="13.400" y="2.220" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">grey_65 rgb(158,158,158)</text>
+<rect x="15.200" y="0.500" width="2.000" height="1.500" fill="rgb(198,198,198)"/>
+<text x="16.200" y="2.220" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">grey_80 rgb(198,198,198)</text>
+<rect x="18.000" y="0.500" width="2.000" height="1.500" fill="rgb(241,241,241)"/>
+<text x="19.000" y="2.220" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">grey_95 rgb(241,241,241)</text>
+<rect x="8.000" y="16.000" width="2.000" height="1.500" fill="rgb(70,130,60)"/>
+<text x="9.000" y="15.900" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">green rgb(70,130,60)</text>
+<rect x="11.000" y="16.000" width="2.000" height="1.500" fill="rgb(205,205,140)"/>
+<text x="12.000" y="15.900" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">silver_yellow rgb(205,205,140)</text>
+<rect x="14.000" y="16.000" width="2.000" height="1.500" fill="rgb(240,210,40)"/>
+<text x="15.000" y="15.900" font-family="Helvetica, Arial, sans-serif" font-size="0.12" fill="#777" text-anchor="middle">yellow rgb(240,210,40)</text>
+<rect x="0.5" y="2.5" width="23.0" height="13.0" fill="none" stroke="#333" stroke-width="0.02" stroke-dasharray="0.2 0.15"/>
+<text x="12.000" y="9.000" font-family="Helvetica, Arial, sans-serif" font-size="0.3" fill="#2a2a2a" text-anchor="middle">place 10 fruit here, not touching</text>
+<text x="12.000" y="17.850" font-family="Helvetica, Arial, sans-serif" font-size="0.14" fill="#777" text-anchor="middle">Saticoy lemon sampling board v1 · 24 x 18 in · print at 100% · ArUco DICT_4X4_50 ids 0-3 · matte finish only</text>
+</svg>

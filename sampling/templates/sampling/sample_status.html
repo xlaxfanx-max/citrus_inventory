@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Sample {{ sample.lot.lot_no }}{% endblock %}
+{% block head %}{% if waiting %}<meta http-equiv="refresh" content="4">{% endif %}
+<style>
+  .status-shell { max-width: 720px; margin: 0 auto; }
+  .status-hero { padding: 1.1rem; border-left: 5px solid var(--accent); }
+  .status-hero.problem { border-left-color: var(--alert-ink); }
+  .next-action { margin-top: 1rem; }
+</style>{% endblock %}
+{% block content %}
+<div class="status-shell">
+<p class="eyebrow">Lot {{ sample.lot.lot_no }} · {{ sample.lot.grower.name }}</p>
+<h2 class="screen-title">Sample saved</h2>
+<p class="lede">{{ sample.get_foreman_color_display }} · pack within {{ sample.foreman_pack_within_weeks }} wk · decay {{ sample.decay_count }}/{{ sample.fruit_count }}</p>
+
+{% if waiting %}
+  <div class="card status-hero" style="margin-top:1rem"><span class="flag grey">Checking photo…</span><h2 style="margin:.55rem 0 .2rem">Keep the route moving</h2><span class="muted">This page updates automatically. You do not need to wait before starting the next lot.</span></div>
+{% elif usable %}
+  <div class="card status-hero" style="margin-top:1rem"><span class="flag ok">Photo accepted</span><h2 style="margin:.55rem 0 .2rem">Measurement recorded</h2>
+    {% for p in usable %}<p class="muted" style="margin:.3rem 0 0">Photo {{ forloop.counter }}: {{ p.fruit_detected }} fruit measured.</p>{% endfor %}
+  </div>
+{% else %}
+  <div class="card status-hero problem" style="margin-top:1rem"><span class="flag red">Photo needs a retake</span><h2 style="margin:.55rem 0 .2rem">Retake before returning the fruit</h2>
+    {% for p in failed %}<p>{{ p.error }}</p>{% endfor %}
+    {% for p in low_quality %}{% for warning in p.quality_warnings %}<p>{{ warning }}</p>{% endfor %}{% endfor %}
+    <a class="btn big" href="{% url 'sampling:capture' sample.lot.pk %}">Retake lot {{ sample.lot.lot_no }}</a>
+  </div>
+{% endif %}
+
+{% if waiting or usable %}
+  <div class="next-action">
+  {% if next_row %}<a class="btn big" href="{% url 'sampling:capture' next_row.lot.pk %}">Next: lot {{ next_row.lot.lot_no }} →</a><p class="muted small" style="text-align:center">{{ next_row.lot.grower.name }} · {{ next_row.lot.current_room|default:'No room' }}</p>
+  {% else %}<a class="btn big" href="{% url 'sampling:picker' %}">Route complete · view summary</a>{% endif %}
+  </div>
+{% endif %}
+
+<p class="toolbar" style="justify-content:center">
+  {% if not waiting and not usable %}<a class="btn soft" href="{% url 'sampling:picker' %}">Skip for now</a>{% endif %}
+  <a class="btn ghost" href="{% url 'lots:lot_detail' sample.lot.pk %}">Open lot history</a>
+</p>
+</div>
+{% endblock %}

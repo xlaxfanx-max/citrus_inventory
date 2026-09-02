@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Imports{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Imports</h2>
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">Upload operational data</h3>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="field"><label for="id_kind">File type</label><br>{{ form.kind }}{{ form.kind.errors }}</div>
+      <div class="field"><label for="id_file">CSV file</label><br>{{ form.file }}{{ form.file.errors }}</div>
+      <button class="btn" type="submit">Import</button>
+    </form>
+    <p class="muted small">Receiving, room moves and packouts may come from Famous. Room-condition and treatment files add the exposure history needed for the next prediction model. Re-uploading the same file is safe.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Blank templates</h3>
+    {% for kind, label, columns in templates %}
+      <p><a href="{% url 'lots:import_template' kind %}"><strong>{{ label }}</strong> template</a><br>
+      <span class="muted small">{{ columns|join:', ' }}</span></p>
+    {% endfor %}
+    <p class="muted small">Dates as YYYY-MM-DD. Sensor and treatment timestamps as YYYY-MM-DD HH:MM or ISO 8601 with an offset. Colors as DG, LG, S or Y. Importing a final packout row closes the lot.</p>
+  </div>
+</div>
+
+<h2>Batch history</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>When</th><th>Type</th><th>File</th><th>By</th><th>Rows OK</th><th>Rows failed</th><th></th></tr></thead>
+  <tbody>
+  {% for b in batches %}
+    <tr><td>{{ b.uploaded_at|date:'Y-m-d H:i' }}</td><td>{{ b.get_kind_display }}</td><td>{{ b.original_name }}</td><td>{{ b.uploaded_by|default:'—' }}</td>
+      <td>{{ b.rows_ok }}</td><td>{% if b.rows_failed %}<span class="flag red">{{ b.rows_failed }}</span>{% else %}0{% endif %}</td>
+      <td><a href="{% url 'lots:import_detail' b.pk %}">details</a></td></tr>
+  {% empty %}<tr><td colspan="7" class="muted">Nothing imported yet.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endblock %}

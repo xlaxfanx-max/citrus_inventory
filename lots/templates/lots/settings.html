@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Model settings</h2>
+<p class="muted">Calibrate against foreman calls in the first three weeks. Changes apply at the next prediction build (nightly, or after the next scored photo). Photos already scored keep their CCI; only the stage labels and dates move.</p>
+<form method="post">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="flag red">{{ form.non_field_errors|join:' ' }}</div>{% endif %}
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">Stage thresholds (mean CCI)</h3>
+      {% for f in form %}{% if f.name|slice:':4' == 'cci_' %}
+        <div class="field"><label for="{{ f.id_for_label }}">{{ f.label }}</label><br>{{ f }}<div class="help">{{ f.help_text }}</div>{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Prior drift (CCI per day) by receiving color</h3>
+      {% for f in form %}{% if f.name|slice:':12' == 'prior_drift_' %}
+        <div class="field"><label for="{{ f.id_for_label }}">{{ f.label }}</label><br>{{ f }}<div class="help">{{ f.help_text }}</div>{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Assumed CCI at receipt (unsampled lots)</h3>
+      {% for f in form %}{% if f.name|slice:':10' == 'start_cci_' %}
+        <div class="field"><label for="{{ f.id_for_label }}">{{ f.label }}</label><br>{{ f }}<div class="help">{{ f.help_text }}</div>{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Buffers and flags</h3>
+      {% for f in form %}{% if f.name in 'buffer_days decay_flag_pct min_fruit_for_score max_horizon_days sample_overdue_days import_gap_days' %}
+        <div class="field"><label for="{{ f.id_for_label }}">{{ f.label }}</label><br>{{ f }}<div class="help">{{ f.help_text }}</div>{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Monday report recipients</h3>
+      {{ formset.management_form }}
+      {% for pf in formset %}
+        {{ pf.id }}
+        <div class="field"><label for="{{ pf.report_recipients.id_for_label }}">{{ pf.instance.code }} {{ pf.instance.name }}</label><br>
+          <textarea name="{{ pf.report_recipients.html_name }}" id="{{ pf.report_recipients.id_for_label }}" rows="2" style="width:100%" placeholder="foreman@example.com, gm@example.com">{{ pf.report_recipients.value|default_if_none:'' }}</textarea>
+          {{ pf.report_recipients.errors }}
+          <label for="{{ pf.weekly_pack_capacity_bins.id_for_label }}" class="small">Weekly packing capacity (bins)</label><br>
+          {{ pf.weekly_pack_capacity_bins }} {{ pf.weekly_pack_capacity_bins.errors }}</div>
+      {% endfor %}
+      <p class="help muted small">Comma-separated. Leave empty to skip a plant.</p>
+    </div>
+  </div>
+  <p><button class="btn" type="submit">Save settings</button></p>
+</form>
+{% endblock %}

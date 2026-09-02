@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Import {{ batch.pk }}{% endblock %}
+{% block content %}
+<p class="small"><a href="{% url 'lots:imports' %}">← Imports</a></p>
+<h2 style="margin-top:0">{{ batch.get_kind_display }} import · {{ batch.original_name }}</h2>
+<div class="tiles">
+  <div class="tile"><div class="num">{{ batch.rows_ok }}</div><div class="label">Rows imported</div></div>
+  <div class="tile {% if batch.rows_failed %}red{% endif %}"><div class="num">{{ batch.rows_failed }}</div><div class="label">Rows with problems</div></div>
+  <div class="tile"><div class="num" style="font-size:1rem">{{ batch.uploaded_at|date:'Y-m-d H:i' }}</div><div class="label">Uploaded by {{ batch.uploaded_by|default:'—' }}</div></div>
+</div>
+<h2>Row-level error report</h2>
+{% if batch.error_report %}
+<div class="table-wrap"><table>
+  <thead><tr><th>File row</th><th>Problem</th></tr></thead>
+  <tbody>{% for e in batch.error_report %}<tr><td>{{ e.row }}</td><td style="white-space:normal">{{ e.error }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted small">Row numbers count the header as row 1, matching what a spreadsheet shows. Fix the rows and re-upload the whole file; good rows are simply re-matched.</p>
+{% else %}<p class="flag ok">Every row imported cleanly.</p>{% endif %}
+{% endblock %}

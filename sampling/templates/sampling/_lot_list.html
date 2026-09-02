@@ -1,0 +1,33 @@
+{% if query %}
+<h3>Matches for “{{ query }}” ({{ rows|length }})</h3>
+<ul class="lotlist">
+  {% for r in rows %}
+  <li{% if r.done_today %} class="done"{% endif %}><a href="{% url 'sampling:capture' r.lot.pk %}">
+    <span class="no">{{ r.lot.lot_no }}</span>
+    <span class="meta">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}<br>{{ r.lot.current_room|default:'No room' }} · {% if r.last %}last check {{ r.days_since }}d ago{% else %}never checked{% endif %}</span>
+    {% if r.done_today %}<span class="flag ok">Done</span>{% elif r.needs_sample %}<span class="flag amber">Due</span>{% else %}<span class="flag grey">Up to date</span>{% endif %}
+  </a></li>
+  {% empty %}
+  <li class="muted" style="padding:1rem">No lots in storage match.</li>
+  {% endfor %}
+</ul>
+{% else %}
+<h3>Needs a check ({{ due_rows|length }})</h3>
+<ul class="lotlist">
+  {% for r in due_rows %}
+  <li><a href="{% url 'sampling:capture' r.lot.pk %}">
+    <span class="no">{{ r.lot.lot_no }}</span>
+    <span class="meta">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}<br>{{ r.lot.current_room|default:'No room' }} · {% if r.last %}last check {{ r.days_since }}d ago{% else %}<strong>never sampled</strong>{% endif %}</span>
+    <span class="weeks">{% if r.last %}{{ r.days_since }}d due{% else %}{{ r.lot.weeks_in_storage }} wk{% endif %} →</span>
+  </a></li>
+  {% empty %}<li class="card muted">Nothing else is due today.</li>{% endfor %}
+</ul>
+
+{% if done_today %}<details class="route-section"><summary>Sampled today ({{ done_today|length }})</summary>
+  <ul class="lotlist">{% for r in done_today %}<li class="done"><a href="{% url 'sampling:capture' r.lot.pk %}"><span class="no">{{ r.lot.lot_no }}</span><span class="meta">{{ r.lot.grower.name }} · {{ r.lot.current_room|default:'No room' }}</span><span class="flag ok">✓ Done</span></a></li>{% endfor %}</ul>
+</details>{% endif %}
+
+{% if recent_rows %}<details class="route-section"><summary>Checked recently ({{ recent_rows|length }})</summary>
+  <ul class="lotlist">{% for r in recent_rows %}<li><a href="{% url 'sampling:capture' r.lot.pk %}"><span class="no">{{ r.lot.lot_no }}</span><span class="meta">{{ r.lot.grower.name }} · {{ r.lot.current_room|default:'No room' }}<br>Last check {{ r.days_since }}d ago</span><span class="flag grey">Up to date</span></a></li>{% endfor %}</ul>
+</details>{% endif %}
+{% endif %}

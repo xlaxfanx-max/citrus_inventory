@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Sample route{% endblock %}
+{% block head %}
+<style>
+  .lotlist { list-style: none; padding: 0; margin: 0; }
+  .lotlist li a { display: flex; align-items: center; gap: .8rem; min-height: 74px; padding: .8rem 1rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: .5rem; text-decoration: none; color: var(--ink); }
+  .lotlist li a:active { background: #eef3e9; }
+  .lotlist .no { font-size: 1.18rem; font-weight: 750; min-width: 5.5rem; }
+  .lotlist .meta { color: var(--muted); font-size: .9rem; flex: 1; }
+  .lotlist .weeks { font-weight: 650; font-size: 1.05rem; text-align: right; }
+  .lotlist li.done a { opacity: .72; }
+  .search { width: 100%; font-size: 1.05rem; padding: .75rem 1rem; }
+  .route-progress { display: grid; grid-template-columns: 1fr auto; gap: .35rem .8rem; align-items: center; margin: 1rem 0; }
+  .route-progress progress { grid-column: 1 / -1; width: 100%; height: .7rem; accent-color: var(--accent); }
+  .next-lot { display: flex; gap: .9rem; justify-content: space-between; align-items: center; border-left: 5px solid var(--accent); }
+  .next-lot strong { display: block; font-size: 1.2rem; }
+  .route-section { margin-top: 1rem; }
+  .route-section > summary { cursor: pointer; padding: .6rem 0; font-weight: 700; color: var(--muted); }
+  @media (max-width: 520px) {
+    .next-lot { align-items: stretch; flex-direction: column; }
+    .next-lot .btn { width: 100%; }
+    .lotlist .weeks { font-size: .9rem; }
+  }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('lot-search');
+  const target = document.getElementById('lots');
+  let timer;
+  let controller;
+  const search = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (controller) controller.abort();
+      controller = new AbortController();
+      const url = new URL(input.dataset.url, window.location.origin);
+      url.searchParams.set('q', input.value);
+      const plant = document.querySelector('select[name="plant"]');
+      if (plant) url.searchParams.set('plant', plant.value);
+      try {
+        const response = await fetch(url, {
+          headers: {'HX-Request': 'true'},
+          credentials: 'same-origin',
+          signal: controller.signal,
+        });
+        if (response.ok) target.innerHTML = await response.text();
+      } catch (error) {
+        if (error.name !== 'AbortError') console.warn('Lot search failed', error);
+      }
+    }, 200);
+  };
+  input.addEventListener('input', search);
+  input.addEventListener('search', search);
+});
+</script>
+{% endblock %}
+{% block content %}
+<div class="toolbar spread" style="align-items:flex-start">
+  <div><p class="eyebrow">{{ plant.code }} · {{ today|date:'l, M j' }}</p><h2 class="screen-title">Today’s sample route</h2><p class="lede">Start with overdue lots. Each check should take about one minute.</p></div>
+  {% if plants %}<form method="get"><select name="plant" aria-label="Plant" onchange="this.form.submit()">{% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}</select></form>{% endif %}
+</div>
+
+<div class="route-progress" aria-label="Route progress">
+  <strong>{% if route_remaining %}{{ route_remaining }} check{{ route_remaining|pluralize }} left{% else %}Route complete{% endif %}</strong>
+  <span class="muted small">{{ route_done }} of {{ route_total }} done</span>
+  <progress value="{{ route_done }}" max="{% if route_total %}{{ route_total }}{% else %}1{% endif %}">{{ route_percent }}%</progress>
+</div>
+
+{% if next_row %}
+<div class="card next-lot">
+  <div><span class="eyebrow">Next recommended</span><strong>Lot {{ next_row.lot.lot_no }}</strong><span class="muted">{{ next_row.lot.grower.name }} · {{ next_row.lot.current_room|default:'No room' }}{% if next_row.last %} · {{ next_row.days_since }}d since last check{% else %} · never sampled{% endif %}</span></div>
+  <a class="btn" href="{% url 'sampling:capture' next_row.lot.pk %}">Start this lot →</a>
+</div>
+{% else %}
+<div class="card"><span class="flag ok">Route complete</span> All currently due lots have been checked. Recently sampled inventory remains available below.</div>
+{% endif %}
+
+<div class="field" style="margin-top:1rem"><label class="small" for="lot-search">Find a different lot</label>
+<input class="search" id="lot-search" type="search" name="q" value="{{ query }}" placeholder="Search lot, grower, block, or room" autocomplete="off"
+       data-url="{% url 'sampling:picker' %}">
+</div>
+<div id="lots">{% include 'sampling/_lot_list.html' %}</div>
+{% endblock %}

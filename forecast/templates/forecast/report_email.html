@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ plant.code }} lemon storage report {{ today }}</title></head>
+<body style="margin:0;padding:16px;background:#f6f7f4;font:15px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;color:#22301f">
+<div style="max-width:720px;margin:0 auto;background:#fff;border:1px solid #e2e6dd;border-radius:10px;padding:20px">
+  {% if not standalone %}<p style="font-size:13px"><a href="{{ board_url }}" style="color:#3a6b35">← Board</a> · preview of the email that goes out Monday 05:30</p>{% endif %}
+  <h1 style="font-size:20px;margin:0 0 4px">🍋 {{ plant.code }} {{ plant.name }} · week of {{ today|date:'M j, Y' }}</h1>
+  <p style="margin:0 0 16px;color:#6b7566">{{ n_lots }} lots in storage · <a href="{{ board_url }}" style="color:#3a6b35">open the plant board</a></p>
+  <p style="margin:0 0 16px;color:#6b7566">{{ to_pack_bins|floatformat:1 }} known bins due this week{% if to_pack_bins_unknown %} · {{ to_pack_bins_unknown }} due lot{{ to_pack_bins_unknown|pluralize }} with unknown quantity{% endif %}{% if weekly_capacity_bins is not None %} · {{ weekly_capacity_bins|floatformat:1 }} bins weekly capacity{% endif %}</p>
+
+  <h2 style="font-size:16px;margin:18px 0 6px;color:#a13c2a">Pack this week · {{ to_pack|length }} lots (pack-by within 7 days)</h2>
+  {% if to_pack %}
+  <table style="border-collapse:collapse;width:100%;font-size:14px">
+    <tr style="color:#6b7566;font-size:12px;text-transform:uppercase"><th align="left" style="padding:4px 6px">Pack by</th><th align="left" style="padding:4px 6px">Lot</th><th align="left" style="padding:4px 6px">Grower</th><th align="left" style="padding:4px 6px">Room</th><th align="left" style="padding:4px 6px">Weeks</th><th align="left" style="padding:4px 6px">Stage / CCI</th><th align="left" style="padding:4px 6px">Foreman</th></tr>
+    {% for pack_by, lot, pred, sample in to_pack %}
+    <tr style="border-top:1px solid #e2e6dd"><td style="padding:6px;font-weight:700;color:{% if pack_by < today %}#a13c2a{% else %}#22301f{% endif %}">{{ pack_by|date:'D M j' }}{% if pack_by < today %} (overdue){% endif %}</td>
+      <td style="padding:6px"><a href="{{ board_url }}" style="color:#3a6b35">{{ lot.lot_no }}</a></td><td style="padding:6px">{{ lot.grower.name }}</td><td style="padding:6px">{{ lot.current_room|default:'—' }}</td><td style="padding:6px">{{ lot.weeks_in_storage }}</td>
+      <td style="padding:6px">{{ pred.get_stage_display }} · {{ pred.cci_now|floatformat:1 }} ({{ pred.confidence }})</td>
+      <td style="padding:6px">{% if sample %}{{ sample.foreman_color }} · {{ sample.foreman_pack_within_weeks }} wk{% else %}—{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<p style="color:#6b7566">Nothing due this week.</p>{% endif %}
+
+  <h2 style="font-size:16px;margin:18px 0 6px">New decay flags · {{ new_decay|length }}</h2>
+  {% if new_decay %}<ul style="margin:0;padding-left:18px">{% for lot, pred, sample in new_decay %}<li><strong>{{ lot.lot_no }}</strong> {{ lot.grower.name }} · observed decay {{ pred.decay_pct|floatformat:1 }}%{% if sample %} · last sample {{ sample.sampled_on }}: {{ sample.decay_count }}/{{ sample.fruit_count }}{% endif %}</li>{% endfor %}</ul>
+  {% else %}<p style="color:#6b7566">None new since last week.</p>{% endif %}
+
+  <h2 style="font-size:16px;margin:18px 0 6px">Moved up more than 7 days · {{ moved_up|length }}</h2>
+  {% if moved_up %}<ul style="margin:0;padding-left:18px">{% for shift, lot, pred, prev in moved_up %}<li><strong>{{ lot.lot_no }}</strong> {{ lot.grower.name }} · pack-by moved from {{ prev.pack_by_date|date:'M j' }} to {{ pred.pack_by_date|date:'M j' }} ({{ shift }} days earlier)</li>{% endfor %}</ul>
+  {% else %}<p style="color:#6b7566">No lot's pack-by moved up by more than a week.</p>{% endif %}
+
+  <h2 style="font-size:16px;margin:18px 0 6px">Not sampled in {{ overdue_days }}+ days · {{ unsampled|length }}</h2>
+  {% if unsampled %}<ul style="margin:0;padding-left:18px">{% for days, lot, sample in unsampled %}<li><strong>{{ lot.lot_no }}</strong> {{ lot.grower.name }} · {{ lot.current_room|default:'no room' }} · {% if sample %}{{ days }} days since last sample{% else %}never sampled, {{ days }} days in storage{% endif %}</li>{% endfor %}</ul>
+  {% else %}<p style="color:#6b7566">Every lot sampled within {{ overdue_days }} days.</p>{% endif %}
+
+  <h2 style="font-size:16px;margin:18px 0 6px">Import gaps · {{ import_gaps|length }} lots older than {{ import_gap_days }} days with no packout</h2>
+  {% if import_gaps %}<ul style="margin:0;padding-left:18px">{% for lot in import_gaps %}<li><strong>{{ lot.lot_no }}</strong> {{ lot.grower.name }} · received {{ lot.receive_date }} ({{ lot.days_in_storage }} days)</li>{% endfor %}</ul>
+  <p style="color:#6b7566;font-size:13px">Probably packed but missing from the packout export. Ask for an updated packout CSV.</p>
+  {% else %}<p style="color:#6b7566">None.</p>{% endif %}
+
+  <p style="margin-top:22px;color:#6b7566;font-size:12px">Generated {{ today }} by the lemon storage tracker. Compared against predictions as of {{ week_ago }}.</p>
+</div>
+</body></html>

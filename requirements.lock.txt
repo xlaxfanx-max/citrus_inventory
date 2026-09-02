@@ -1,0 +1,21 @@
+# Reproducible production set. Refresh only after the full suite and container build pass.
+asgiref==3.12.1
+boto3==1.43.86
+botocore==1.43.86
+Django==6.1
+django-storages==1.14.6
+gunicorn==23.0.0
+jmespath==1.1.0
+numpy==2.5.2
+opencv-python-headless==4.14.0.94
+packaging==26.3
+pillow==12.3.0
+psycopg==3.3.5
+psycopg-binary==3.3.5
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+sqlparse==0.6.0
+tzdata==2026.3
+urllib3==2.7.0
+whitenoise==6.12.0

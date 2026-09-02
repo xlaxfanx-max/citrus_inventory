@@ -1,0 +1,78 @@
+"""Room moves import (optional): where lots went and when.
+
+Columns: plant_code, lot_no, room, moved_at
+
+Rooms that don't exist yet are created on the plant. A move that already
+exists (same lot, room, date) is a no-op. The lot's current_room follows
+its most recent move.
+"""
+
+from django.db import transaction
+
+from ..models import Lot, LotRoomMove, Plant, Room
+from .base import RowError, parse_date, require
+
+COLUMNS = ['plant_code', 'lot_no', 'room', 'moved_at']
+REQUIRED_COLUMNS = COLUMNS
+
+
+def parse_row(row):
+    return {
+        'plant_code': require(row, 'plant_code').upper(),
+        'lot_no': require(row, 'lot_no'),
+        'room': require(row, 'room')[:50],
+        'moved_at': parse_date(row.get('moved_at'), 'moved_at'),
+    }
+
+
+@transaction.atomic
+def run(rows, batch=None):
+    errors, parsed = [], []
+    for i, row in enumerate(rows, start=2):
+        try:
+            parsed.append((i, parse_row(row)))
+        except RowError as e:
+            errors.append({'row': i, 'error': str(e)})
+    if not parsed:
+        return 0, errors
+
+    plants = {p.code: p for p in Plant.objects.all()}
+    lots = {
+        (l.plant.code, l.lot_no): l
+        for l in Lot.objects.filter(lot_no__in={d['lot_no'] for _, d in parsed}).select_related('plant')
+    }
+    rooms = {(r.plant_id, r.name): r for r in Room.objects.all()}
+
+    ok = 0
+    latest = {}
+    for i, d in parsed:
+        plant = plants.get(d['plant_code'])
+        if plant is None:
+            errors.append({'row': i, 'error': f'unknown plant_code {d["plant_code"]!r}'})
+            continue
+        lot = lots.get((d['plant_code'], d['lot_no']))
+        if lot is None:
+            errors.append({'row': i, 'error': f'unknown lot {d["plant_code"]} {d["lot_no"]} (import receiving first)'})
+            continue
+        if d['moved_at'] < lot.receive_date:
+            errors.append({'row': i, 'error': f'moved_at {d["moved_at"]} is before receive_date {lot.receive_date}'})
+            continue
+        if lot.packed_date and d['moved_at'] > lot.packed_date:
+            errors.append({'row': i, 'error': f'moved_at {d["moved_at"]} is after final packout {lot.packed_date}'})
+            continue
+        room = rooms.get((plant.id, d['room']))
+        if room is None:
+            room = Room.objects.create(plant=plant, name=d['room'])
+            rooms[(plant.id, d['room'])] = room
+        LotRoomMove.objects.get_or_create(lot=lot, room=room, moved_at=d['moved_at'])
+        ok += 1
+        prev = latest.get(lot.pk)
+        if prev is None or d['moved_at'] >= prev[0]:
+            latest[lot.pk] = (d['moved_at'], room, lot)
+
+    for when, room, lot in latest.values():
+        newest = lot.room_moves.order_by('-moved_at', '-id').first()
+        if newest and newest.room_id != lot.current_room_id:
+            lot.current_room = newest.room
+            lot.save(update_fields=['current_room'])
+    return ok, errors

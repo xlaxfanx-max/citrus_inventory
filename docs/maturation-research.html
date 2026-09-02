@@ -1,0 +1,364 @@
+<title>Holding Green</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Serif+4:opsz,ital,wght@8..60,0,400;8..60,0,600;8..60,1,400&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+  :root {
+    --paper: #fafaf4;
+    --card: #ffffff;
+    --ink: #232d1d;
+    --muted: #6a7360;
+    --line: #e4e4d6;
+    --accent: #4a7a3d;
+    --link: #3d6a33;
+    --lemon: #e5c23c;
+    --dg: #2e5d2a; --lg: #7ea55c; --sl: #c6cbb2; --yl: #ecce4a;
+    --ok-bg: #e4efdc; --ok-ink: #2f5c27;
+    --part-bg: #fdf3d3; --part-ink: #8a6d00;
+    --gap-bg: #fbe4e0; --gap-ink: #a13c2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #171a12;
+      --card: #1e2318;
+      --ink: #e7e9dc;
+      --muted: #99a289;
+      --line: #2e3424;
+      --accent: #8fbb77;
+      --link: #9ecb85;
+      --lemon: #d9b93f;
+      --sl: #a8ad94;
+      --ok-bg: #26361d; --ok-ink: #a9d18f;
+      --part-bg: #3a3212; --part-ink: #e0c25a;
+      --gap-bg: #3d211c; --gap-ink: #e09a8a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #171a12;
+    --card: #1e2318;
+    --ink: #e7e9dc;
+    --muted: #99a289;
+    --line: #2e3424;
+    --accent: #8fbb77;
+    --link: #9ecb85;
+    --lemon: #d9b93f;
+    --sl: #a8ad94;
+    --ok-bg: #26361d; --ok-ink: #a9d18f;
+    --part-bg: #3a3212; --part-ink: #e0c25a;
+    --gap-bg: #3d211c; --gap-ink: #e09a8a;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 17px/1.65 "Source Serif 4", Georgia, serif;
+    margin: 0;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 3rem 1.4rem 4rem; }
+  .prose { max-width: 70ch; }
+
+  .eyebrow {
+    font: 600 0.78rem/1.4 "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--accent);
+    margin: 0 0 0.4rem;
+  }
+  h1 {
+    font: 600 2.5rem/1.15 Fraunces, Georgia, serif;
+    margin: 0 0 0.5rem;
+    text-wrap: balance;
+  }
+  .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 60ch; margin: 0 0 1.6rem; }
+  h2 {
+    font: 600 1.5rem/1.25 Fraunces, Georgia, serif;
+    margin: 2.8rem 0 0.7rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font: 600 1.1rem/1.3 Fraunces, Georgia, serif;
+    margin: 1.8rem 0 0.4rem;
+  }
+  p { margin: 0.7rem 0; }
+  a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  ul, ol { padding-left: 1.3rem; }
+  li { margin: 0.35rem 0; }
+  strong { font-weight: 600; }
+
+  .src {
+    display: block;
+    font: 400 0.84rem/1.5 "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    color: var(--muted);
+    margin-top: 0.15rem;
+  }
+
+  /* The color ladder — the report's central finding, rendered as itself */
+  .ladder { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 1.8rem 0 0.4rem; }
+  .rung { flex: 1 1 150px; min-width: 140px; }
+  .rung .swatch { height: 14px; border-radius: 7px; margin-bottom: 0.45rem; }
+  .rung.dg .swatch { background: var(--dg); }
+  .rung.lg .swatch { background: var(--lg); }
+  .rung.sl .swatch { background: var(--sl); }
+  .rung.yl .swatch { background: var(--yl); }
+  .rung .name { font: 600 0.85rem/1.3 "Source Sans 3", "Segoe UI", system-ui, sans-serif; }
+  .rung .hold { font: 400 0.82rem/1.4 "Source Sans 3", "Segoe UI", system-ui, sans-serif; color: var(--muted); }
+  .ladder-cap {
+    font: 400 0.82rem/1.5 "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    color: var(--muted);
+    margin: 0 0 0.5rem;
+  }
+
+  .tldr {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--lemon);
+    border-radius: 8px;
+    padding: 1.1rem 1.4rem;
+    margin: 2rem 0;
+  }
+  .tldr .eyebrow { color: var(--muted); }
+  .tldr li { margin: 0.5rem 0; }
+
+  .tablewrap {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 1.2rem 0;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font: 400 0.9rem/1.5 "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td { text-align: left; padding: 0.55rem 0.9rem; vertical-align: top; }
+  th {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody tr + tr td { border-top: 1px solid var(--line); }
+
+  .chip {
+    display: inline-block;
+    padding: 0.08rem 0.55rem;
+    border-radius: 99px;
+    font: 600 0.78rem/1.5 "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    white-space: nowrap;
+  }
+  .chip.ok { background: var(--ok-bg); color: var(--ok-ink); }
+  .chip.part { background: var(--part-bg); color: var(--part-ink); }
+  .chip.gap { background: var(--gap-bg); color: var(--gap-ink); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    padding: 0.15rem 0 0.15rem 1rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin: 1rem 0;
+  }
+
+  .sources { font: 400 0.9rem/1.6 "Source Sans 3", "Segoe UI", system-ui, sans-serif; }
+  .sources h3 { font-family: Fraunces, Georgia, serif; }
+  .sources li { margin: 0.3rem 0; }
+  .sources .tag { color: var(--muted); }
+
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    font: 400 0.84rem/1.6 "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    color: var(--muted);
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Citrus Inventory · outside research · August 2026</p>
+  <h1>Holding Green</h1>
+  <p class="subtitle">How lemon packing houses control the maturation of fruit in storage — synthesized from university extension programs, industry and supplier literature, and the published modeling record. With a gap analysis against the pilot's data model.</p>
+
+  <div class="ladder">
+    <div class="rung dg"><div class="swatch"></div><div class="name">Dark green</div><div class="hold">holds 5–6 months</div></div>
+    <div class="rung lg"><div class="swatch"></div><div class="name">Light green</div><div class="hold">holds ~2 months</div></div>
+    <div class="rung sl"><div class="swatch"></div><div class="name">Silver</div><div class="hold">holds ~6 weeks</div></div>
+    <div class="rung yl"><div class="swatch"></div><div class="name">Yellow</div><div class="hold">holds a few weeks</div></div>
+  </div>
+  <p class="ladder-cap">Storage-life budget by rind color at harvest (NSW DPI lemon production manual, which notes California is the reference for long storage and harvests on four color grades). This ladder is the industry's own working model — the baseline our forecasts refine.</p>
+
+  <div class="tldr">
+    <p class="eyebrow">The short version</p>
+    <ul>
+      <li><strong>Five real levers</strong> control lemon maturation: color at harvest, storage temperature, ethylene (excluded to slow, applied to speed), wax (formulation and amount), and preharvest growth regulators (GA₃, 2,4-D).</li>
+      <li><strong>Temperature response is bell-shaped, not linear.</strong> Lemons yellow fastest near 10–15 °C and hold green both colder (~5 °C) and warmer (~25 °C). A naive "warmer = faster" model is wrong in exactly the range storage rooms operate.</li>
+      <li><strong>The two-wax system in our schema matches real Ventura practice</strong> — a storage wax at intake, a pack wax at shipping — and "wax amount" is implemented as storage-wax dilution. No supplier publishes a dilution-vs-hold table; that knowledge is tacit.</li>
+      <li><strong>Nobody sells what we're building.</strong> No commercial product or published system forecasts color-class transition dates for stored lemon lots. The nearest academic work (Volcani Institute, Israel) predicts quality scores from commercial lot data with R² ≈ 0.88 — right architecture, different target.</li>
+      <li><strong>"Silver" is not an official grade.</strong> USDA lemon standards define only three coarse color terms; the four-class ladder is California trade practice. Our color reference card will be the pilot's de facto standard, so it must stay consistent all season.</li>
+    </ul>
+  </div>
+
+  <div class="prose">
+    <h2>Part 1 — The levers</h2>
+
+    <h3>Storage temperature: the master clock</h3>
+    <p>Everything else modulates; temperature drives. University guidance puts long-term lemon storage at 12–14 °C (54–57 °F) with 90–95% relative humidity, good for up to six months on dark-green fruit. Actual Ventura County practice runs slightly cooler: Saticoy Lemon Association (a Sunkist-affiliated house) publicly describes rooms at 50–52 °F and 90–95% RH, where fruit slowly "develops its bright yellow color" — that is, California houses deliberately let color advance at a controlled crawl rather than gassing it.
+      <span class="src">UC Davis Postharvest Center, Lemon Produce Facts (Arpaia &amp; Kader) · <a href="https://postharvest.ucdavis.edu/produce-facts-sheets/lemon">postharvest.ucdavis.edu</a> · Saticoy Lemon Assn., <a href="https://saticoylemon.com/operations/">Operations</a> · USDA Agriculture Handbook 66 (2016), Lemon chapter · <a href="https://www.ars.usda.gov/ARSUserFiles/oc/np/CommercialStorage/CommercialStorage.pdf">ars.usda.gov</a></span></p>
+    <p>The floor is chilling injury: below ~10 °C for prolonged periods lemons develop pitting, membranous stain, and red blotch, and two disorders (peteca, membrane stain) are reduced by staying at or above 13 °C — though 3–4 weeks at 3–5 °C in transit is tolerated. Respiration roughly doubles per 10 °C.
+      <span class="src">USDA Handbook 66, Lemon chapter (Gross &amp; Smilanick)</span></p>
+    <p><strong>The modeling landmine:</strong> controlled experiments storing lemons at 5, 10, 15, 20, and 25 °C for 42 days found degreening <em>fastest at 15 °C</em>, slower at 10 and 20 °C, nearly absent at 5 °C — and nearly absent at 25 °C too. Cold-induced and ethylene-induced degreening are two independent pathways (1-MCP blocks only the ethylene one). Any forecasting model must use a non-monotonic temperature-rate function, not a plain Q10/Arrhenius curve.
+      <span class="src">Mitalo et al. 2020, <em>J. Experimental Botany</em> 71(16) · <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7410192/">open access</a></span></p>
+
+    <h3>Humidity and curing</h3>
+    <p>High RH (90–95%) suppresses water loss; unwaxed stored lemons lose roughly 5% of their weight per month, and shrivel becomes a market problem around 5% total. "Curing" — the old California practice of conditioning rind at roughly 58–60 °F and 85–90% RH so it thins, toughens, and gains juice — survives mostly in industry memory: modern extension literature acknowledges that storage <em>improves</em> lemon quality (juice content rises up to 16%, acid up to 24%) without parameterizing the practice.
+      <span class="src">NSW DPI, <em>Growing Lemons in Australia</em>, ch. 16 Postharvest · <a href="https://www.dpi.nsw.gov.au/__data/assets/pdf_file/0008/137753/16-lemon-postharvest.pdf">dpi.nsw.gov.au</a> · US Patent 4,209,538 (Transfresh, 1980) · USDA Handbook 66</span></p>
+
+    <h3>Ethylene, in both directions</h3>
+    <p><strong>Excluded, it slows aging.</strong> Lemons produce almost no ethylene themselves (&lt;0.1 µL/kg·hr) but are extremely sensitive to it; removing it from storage air measurably reduces senescence and decay. California houses handle this with continuous room venting — which makes ambient ethylene and venting practice a hidden per-room variable for us.
+      <span class="src">UC Davis Lemon Produce Facts · USDA Handbook 66 · NSW DPI manual ("In California… the ethylene problem is overcome by continuous venting")</span></p>
+    <p><strong>Applied, it forces color.</strong> California/Arizona degreening: 1–10 ppm ethylene for 1–3 days at 68–77 °F. Florida runs hotter and faster (3–5 ppm at 82–85 °F). CO₂ at just 0.1% measurably slows degreening and 1% halts it, so rooms need about one air change per hour. Degreening accelerates decay and button drop, and fruit must not be waxed before gassing or full color never develops. Notably, at least one major Ventura house describes no gassing at all for lemons — slow color in cold storage <em>is</em> their degreening program — while a Yuma, AZ house runs ethylene rooms with a simple rule of thumb: light-green fruit ≈ 4 days, darker green ≈ 6.
+      <span class="src">UC Davis · UF/IFAS EDIS HS195, <a href="https://edis.ifas.ufl.edu/publication/HS195">Degreening Florida Fresh Citrus</a> · Catalytic Generators, <a href="https://www.catalyticgenerators.com/citrus-degreening">citrus degreening</a> · Mission Citrus via <a href="https://kyma.com/news/home-grown/2021/12/21/home-grown-citrus-packing-facility-houses-some-of-the-worlds-lemons/">KYMA</a> · Saticoy Operations</span></p>
+
+    <h3>Wax: formulation, amount, and what "amount" actually means</h3>
+    <p>Lemons are unusual among citrus in getting <strong>two separate coatings</strong>: a low-gloss <em>storage wax</em> applied wet after the first wash, before rooms (no drying step), and a gloss <em>pack wax</em> applied and hot-air dried at packing. The storage wax exists to control water loss and slow respiration through the months in the room; the pack wax is for transit and shelf appeal. This is exactly the split our schema records.
+      <span class="src">Saticoy Operations · Center for Produce Safety / UC Davis waxing project (Wang &amp; Harris) · <a href="https://centerforproducesafety.org/research-database/Waxing-of-whole-produce-and-its-involvement-in-and-impact-on-microbial-food-safety">centerforproducesafety.org</a></span></p>
+    <p>Mechanically, coatings restrict gas exchange and create a modified internal atmosphere: less water loss (wax cuts the ~5%/month rate by 30–40%) and slower respiration, hence slower aging. The dose-response has a cliff: over-coated fruit goes anaerobic — flavor damage thresholds around internal CO₂ &gt; 14%, internal O₂ &lt; 4%, juice ethanol &gt; 1,500 µL/L — producing off-flavors and rind pitting. Formulation chemistry sets the trade-off: carnauba is shiny but permeable (weaker water-loss control, safer internally); shellac and polyethylene resins are stronger barriers with higher off-flavor risk. Typical commercial citrus waxes run ~15–21% solids.
+      <span class="src">NSW DPI manual · Citrus Industry Magazine, <a href="https://citrusindustry.net/2024/01/17/waxing-right-way/">"Waxing the Right Way"</a> (2024, summarizing NSW DPI's Golding) · JASHS 146(1):40 (2021), carnauba vs. shellac · ES2289965B1 coating patent</span></p>
+    <p><strong>How houses vary the amount:</strong> the documented mechanism is <em>dilution of the storage wax</em> (a 1:9 diluted storage wax appears in the UC Davis food-safety trials) plus the choice of formulation. No supplier or university source publishes a "solids % vs. intended months of hold" table — that mapping is tacit, packinghouse-level knowledge, which squares with what our industry contact described. Practical consequence: the pilot should record product name and dilution per lot (our <code>rate</code> field), and the house's wax-supplier rep is the person who can articulate the in-house dosing rules.
+      <span class="src">J. Food Protection lemon storage-wax study (2023, snippet) · supplier literature survey: JBT Sta-Fresh/Endura-Fresh, Pace Natural Shine, Decco Lustr/Citrashine, Fomesa Waterwax — none publish dose tables</span></p>
+    <p>One more wrinkle: storage wax doubles as a <em>delivery vehicle</em>. California practice mixes fungicides and 2,4-D into the storage wax itself, so a single line event can carry three treatments.
+      <span class="src">Citrus Industry Magazine, <a href="https://citrusindustry.net/2026/06/19/plant-growth-regulators-california-citrus/">PGRs in California Citrus</a> (2026, citing UC's Arpaia) · Adaskaveg (UCR) storage-wax fungicide trials</span></p>
+
+    <h3>Preharvest chemistry: the levers pulled before we ever see the fruit</h3>
+    <ul>
+      <li><strong>Harvest color is the dominant lever of all</strong> — it sets the hold budget per the ladder above. California legal maturity for lemons is juice content (≥28–30% by volume), <em>not</em> color, which is precisely why color and storage life are free variables the house manages.</li>
+      <li><strong>Gibberellic acid (GA₃)</strong>, sprayed at 10–20 g a.i./acre in October–December while fruit is still green (about 4–6 weeks before harvest, at silver-green for storage fruit), keeps the rind juvenile: it delays color break and rind aging, and studies show a protection window of roughly the first 5 weeks of storage. GA₃-treated blocks arrive greener and hold longer — a block-level covariate the model needs to know about.
+        <span class="src">UC IPM Citrus Guidelines (UC ANR Pub 3441), <a href="https://ipm.ucanr.edu/agriculture/citrus/delaying-fruit-senescence-with-gibberellic-acid-ga3/">Delaying Fruit Senescence with GA₃</a> · Coggins (UC Riverside) classic work · Mexican lime GA₃+wax trials</span></li>
+      <li><strong>2,4-D</strong> (an auxin, applied postharvest at ~500 ppm, often in the storage wax) keeps the calyx "button" alive; a live button blocks Alternaria rot, the main decay of long-stored lemons. It slightly delays color too. Registration status is in flux and worth confirming against current labels.
+        <span class="src">UC Davis Lemon Produce Facts · FAO JMPR 2,4-D evaluation · Citrus Industry Magazine 2026</span></li>
+      <li><strong>Rootstock</strong> measurably changes peel color intensity and thickness, but no study directly links lemon rootstock to storage color-change <em>rate</em> — an open question worth one column of block metadata.
+        <span class="src">Forner-Giner et al. 2020, <em>Agronomy</em> 10(7):974</span></li>
+    </ul>
+
+    <h3>On the shelf but rarely used</h3>
+    <p>Controlled atmosphere (5–10% O₂) demonstrably delays green-color loss but USDA calls the injury risk high and adoption "rare." 1-MCP blocks ethylene-driven degreening in research settings but isn't commercial lemon practice. Intermittent warming appears in the literature for escaping chilling injury at lower set-points, without evidence of mainstream California use. None of these need modeling in year one.
+      <span class="src">UC Davis · USDA Handbook 66 · literature survey</span></p>
+
+    <h2>Part 2 — Color classes: official vs. trade</h2>
+    <p>A finding that matters for how we run the pilot: <strong>the four-class ladder has no official definition.</strong> The USDA lemon grade standards (a new edition became effective May 2026) define only three coarse terms — "well colored," "fairly well colored," "moderately well colored" — and no soluble-solids maturity requirement. "Dark green / light green / silver / yellow" is California trade vocabulary; the closest documented quantification is the NSW manual's storage table and its note that California harvests on four color grades. CDFA's citrus program sets juice-content maturity, enforced county-by-county including Ventura.
+      <span class="src">USDA, <a href="https://www.ams.usda.gov/sites/default/files/media/Lemon_Standard%5B1%5D.pdf">U.S. Standards for Grades of Lemons</a> (eff. 2026) · USDA <a href="https://www.ams.usda.gov/sites/default/files/media/Lemons_Inspection_Instructions%5B1%5D.pdf">Lemons Inspection Instructions</a> · <a href="https://www.cdfa.ca.gov/is/i_&amp;_c/citrus.html">CDFA Citrus Program</a></span></p>
+    <p>Two implications. First, our weekly color check card <em>is</em> the standard for the pilot — it must not drift mid-season, and checkers should be trained against the same card. Second, there is a well-established scalar bridge if we ever want one: the Citrus Color Index, CCI = 1000·a*/(L*·b*), is what camera systems estimate (published camera-vs-colorimeter agreement R² ≈ 0.97; machine-vision lemon color classing ≈ 94% accurate). The house's existing grader already speaks this language at intake and packout.
+      <span class="src">Vidal et al. 2013, <em>Food &amp; Bioprocess Tech.</em> · Kinnow CV study 2019 · <em>Int. J. Food Properties</em> 2015</span></p>
+
+    <h2>Part 3 — Can it be predicted? The published record</h2>
+    <p>Short answer: the pieces exist, assembled by nobody.</p>
+    <ul>
+      <li><strong>Temperature history → color, quantitatively.</strong> A Spanish group (Murcia) regressed lemon peel color against the mean daily minimum temperature of the preceding 7 and 21 days and got adjusted R² &gt; 0.93; degreening on-tree starts when minimums drop below ~13–15 °C. Trailing temperature windows are proven features.
+        <span class="src">Manera et al. 2012, <em>Scientia Horticulturae</em> 145 · companion paper, <em>Aust. J. Crop Science</em> 6(6)</span></li>
+      <li><strong>Forecasting color on a future date has been done once,</strong> in a cost-analysis context: predicting a lemon lot's color index at a given date and the days of ethylene needed to finish it from a given starting color. Same group also modeled the green→yellow transition with fuzzy classes — a good precedent for our ordinal color states.
+        <span class="src">Conesa et al. 2014, <em>Scientia Horticulturae</em> 179 · Brotons et al. 2013, <em>Computers &amp; Electronics in Agriculture</em> 98</span></li>
+      <li><strong>Intake color → remaining life is experimentally confirmed:</strong> green-harvested Eureka lemons stored acceptably ~90 days at 10 °C; yellow-harvested only ~30.
+        <span class="src">Sun et al. 2019, <em>Scientia Horticulturae</em> 249</span></li>
+      <li><strong>The closest architectural template is the Volcani Institute line</strong> (Israel): thousands of fruit / ~80–90 commercial lots per season, harvest metadata + orchard + storage conditions fed to gradient-boosted and SVR models, predicting a 1–5 quality score with R² 0.88–0.89 (RMSE ≈ 0.2) and decay with R² 0.60; a follow-up handles dynamic temperature histories (cold-chain interruptions), and a 2025 study extends to full packinghouse "intelligent logistics." Storage time dominated feature importance. This is our design pattern with a different target variable.
+        <span class="src">Owoyemi et al. 2022, <em>Foods</em> 11(13) <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9266293/">open access</a> · Owoyemi et al. 2022, <em>Horticulturae</em> 8(7) · Owoyemi et al. 2023, <em>Postharvest Bio. &amp; Tech.</em> 204 · 'Orri' logistics study 2025</span></li>
+      <li><strong>Borrowable rate-model skeletons:</strong> the generic keeping-quality model (parallel Arrhenius reactions, dynamic form for varying temperature) and a lemon-specific Arrhenius fit (Ea ≈ 63 kJ/mol, Q10 ≈ 2.2 — valid only above ~15 °C, where the bell curve hasn't inverted). A degree-day-style "cold units" formulation for postharvest citrus color appears to be genuinely unpublished territory.
+        <span class="src">Tijskens &amp; Polderdijk 1996, <em>Agricultural Systems</em> 51(4) · Hasbullah &amp; Ismail 2022, <em>J. Horticultural Research</em> 30(1)</span></li>
+    </ul>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Published benchmark</th><th>Target</th><th>Reported accuracy</th></tr></thead>
+        <tbody>
+          <tr><td>Volcani XGBoost/SVR (oranges, commercial lots)</td><td>1–5 quality score</td><td>R² 0.88–0.89, RMSE ≈ 0.2</td></tr>
+          <tr><td>Volcani (same program)</td><td>Decay %</td><td>R² 0.60, RMSE 10.6%</td></tr>
+          <tr><td>Murcia trailing-min-temp regressions (lemons)</td><td>Peel color coordinate</td><td>adj. R² &gt; 0.93</td></tr>
+          <tr><td>Machine vision (lemons)</td><td>Color class</td><td>≈ 94% accuracy</td></tr>
+          <tr><td>Camera CCI vs. colorimeter</td><td>Citrus Color Index</td><td>R² ≈ 0.97</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Part 4 — Competitive landscape</h2>
+    <p>The plan's claim that "no one sells this" held up under a deliberate search. Farmsoft advertises citrus storage <em>tracking</em>; AgroFresh FreshCloud is storage-room monitoring (apple-centric) plus digitized QC capture for citrus; TOMRA/Compac sell color <em>sorting</em> at scale ("up to 200 new lanes at California citrus packhouses yearly"); ZGROUP automates degreening-room control. Nothing found — commercial or academic — claims to forecast color-class transition dates or optimize hold duration for lemon lots. One honest caveat: Sunkist's internal research and technical services materials aren't publicly reachable, so what Sunkist may have in-house is unknown — worth listening for in pilot conversations.
+      <span class="src">farmsoft.com · <a href="https://www.agrofresh.com/solutions/freshcloud/">agrofresh.com/freshcloud</a> · tomra.com citrus pages · zgroup-usa.com · sunkistresearch.com (unreachable, TLS misconfigured)</span></p>
+
+    <h2>Part 5 — What this means for Citrus Inventory</h2>
+
+    <h3>Model design decisions the research settles now</h3>
+    <ol>
+      <li><strong>Non-monotonic temperature response.</strong> Encode the bell curve (peak ~10–15 °C, suppressed at both ends). A piecewise or spline rate function over room temperature; never plain Q10 across the whole range.</li>
+      <li><strong>Trailing temperature-window features</strong> (7- and 21-day means from RoomLog) — the single best-validated predictor form in the lemon literature.</li>
+      <li><strong>Condition on intake color class,</strong> with the trade ladder (5–6 mo / 2 mo / 6 wk / weeks) as the prior our model refines.</li>
+      <li><strong>Ordinal/fuzzy color states.</strong> Human class calls are soft boundaries; model transition probabilities, not sharp switches — with CCI as the latent scale if grader data is ever calibrated in.</li>
+      <li><strong>Wax as a controlled covariate, never a recommended lever, in year one</strong> — with <code>intended_hold</code> separating its physical effect from the plan it encodes (already built).</li>
+      <li><strong>Use actual temperature histories, not setpoints.</strong> The Volcani interruption study shows deviations matter more the longer fruit has been stored.</li>
+    </ol>
+
+    <h3>Schema gap analysis</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What the research says matters</th><th>Where it lives in our schema</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Room temperature history</td><td>RoomLog.temp_f (daily)</td><td><span class="chip ok">Covered</span></td></tr>
+          <tr><td>Humidity, CO₂ in rooms</td><td>RoomLog.humidity_pct, .co2_pct</td><td><span class="chip ok">Covered</span></td></tr>
+          <tr><td>Intake color</td><td>Inbound GraderReading + first ColorCheck</td><td><span class="chip ok">Covered</span></td></tr>
+          <tr><td>Storage wax vs. pack wax, product, amount</td><td>LotTreatment kinds + product + rate + intended_hold</td><td><span class="chip ok">Covered</span> — record dilution in <code>rate</code></td></tr>
+          <tr><td>Ambient ethylene &amp; venting in <em>cold</em> rooms</td><td>RoomLog.ethylene_ppm exists but venting/scrubber status isn't captured; logging was aimed at degreen rooms</td><td><span class="chip part">Partial</span></td></tr>
+          <tr><td>2,4-D / PGR applied in storage wax</td><td>Falls to LotTreatment "Other" (wording preserved)</td><td><span class="chip part">Partial</span> — consider a PGR kind</td></tr>
+          <tr><td>Preharvest GA₃ by block (Oct–Dec sprays)</td><td>Nothing — treatments are lot-level, postharvest</td><td><span class="chip gap">Gap</span> — needs a block/season treatment record</td></tr>
+          <tr><td>Harvest maturity metrics (juice %, acid)</td><td>Nothing — grader captures color/size only</td><td><span class="chip gap">Gap</span> — houses run juice tests for legal maturity</td></tr>
+          <tr><td>Decay % at weekly check (the industry sell trigger is ~5%)</td><td>ColorCheck.notes free text only</td><td><span class="chip gap">Gap</span> — a decay_pct field makes the sell rule computable</td></tr>
+          <tr><td>Rootstock per block</td><td>Block.notes free text</td><td><span class="chip part">Partial</span> — cheap to add as a field</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>New questions for the candidate-house meeting</h3>
+    <ol>
+      <li>Which storage wax product do you use, at what dilution, and is the dilution logged per lot or per day? (And can we talk to your wax supplier rep?)</li>
+      <li>Do you gas lemons at all, or is color managed entirely in cold storage?</li>
+      <li>Can we get GA₃ spray records (dates, rates, blocks) from your growers for the blocks in the pilot?</li>
+      <li>Do you run juice-content tests at intake, and are the results filed anywhere?</li>
+      <li>How do cold rooms handle ethylene — continuous venting, scrubbing, ever measured?</li>
+      <li>Do weekly QC checks estimate a decay percentage, and what number triggers "sell now"?</li>
+    </ol>
+
+    <div class="note">Sampling-routine note: the research validates the weekly cadence (the NSW manual prescribes weekly inspection of stored lemons) and adds one cheap upgrade — recording a decay estimate alongside the color call turns the industry's own 5% sell rule into something the dashboard can watch.</div>
+
+    <h2 id="sources">Sources</h2>
+    <div class="sources">
+      <h3>University &amp; government</h3>
+      <ul>
+        <li>UC Davis Postharvest Center — <a href="https://postharvest.ucdavis.edu/produce-facts-sheets/lemon">Lemon Produce Facts</a> (Arpaia &amp; Kader)</li>
+        <li>USDA — <a href="https://www.ars.usda.gov/ARSUserFiles/oc/np/CommercialStorage/CommercialStorage.pdf">Agriculture Handbook 66</a>, Lemon chapter; <a href="https://www.ams.usda.gov/sites/default/files/media/Lemon_Standard%5B1%5D.pdf">Lemon Grade Standards (2026)</a>; <a href="https://www.ams.usda.gov/sites/default/files/media/Lemons_Inspection_Instructions%5B1%5D.pdf">Inspection Instructions</a></li>
+        <li>UC IPM (UC ANR Pub 3441) — <a href="https://ipm.ucanr.edu/agriculture/citrus/delaying-fruit-senescence-with-gibberellic-acid-ga3/">Delaying Fruit Senescence with GA₃</a></li>
+        <li>UF/IFAS EDIS — <a href="https://edis.ifas.ufl.edu/publication/HS195">Recommendations for Degreening Florida Fresh Citrus (HS195)</a></li>
+        <li>NSW DPI — <a href="https://www.dpi.nsw.gov.au/__data/assets/pdf_file/0008/137753/16-lemon-postharvest.pdf">Growing Lemons in Australia, ch. 16: Postharvest Handling</a></li>
+        <li><a href="https://www.cdfa.ca.gov/is/i_&amp;_c/citrus.html">CDFA Citrus Program</a></li>
+      </ul>
+      <h3>Industry &amp; suppliers</h3>
+      <ul>
+        <li>Saticoy Lemon Association — <a href="https://saticoylemon.com/operations/">Operations</a> (Ventura County practice)</li>
+        <li>Citrus Industry Magazine — <a href="https://citrusindustry.net/2024/01/17/waxing-right-way/">Waxing the Right Way</a> (2024); <a href="https://citrusindustry.net/2026/06/19/plant-growth-regulators-california-citrus/">PGRs in California Citrus</a> (2026)</li>
+        <li>Center for Produce Safety / UC Davis — <a href="https://centerforproducesafety.org/research-database/Waxing-of-whole-produce-and-its-involvement-in-and-impact-on-microbial-food-safety">whole-produce waxing project</a></li>
+        <li>Catalytic Generators — <a href="https://www.catalyticgenerators.com/citrus-degreening">citrus degreening guidance</a></li>
+        <li>Supplier literature surveyed: JBT Sta-Fresh / Endura-Fresh, Pace <a href="https://www.paceint.com/natural-shine/">Natural Shine</a>, Decco Lustr 631 (label) / Citrashine, Fomesa Waterwax, <a href="https://www.agrofresh.com/crops/citrus/">AgroFresh citrus portfolio</a></li>
+      </ul>
+      <h3>Research literature (key items)</h3>
+      <ul>
+        <li>Mitalo et al. 2020 — low-temperature lemon degreening, <em>J. Exp. Botany</em> 71(16) <span class="tag">(read in full)</span> · <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7410192/">PMC7410192</a></li>
+        <li>Manera et al. 2012 — temperature → lemon peel color regressions, <em>Scientia Horticulturae</em> 145 <span class="tag">(abstract)</span></li>
+        <li>Conesa et al. 2014 — lemon degreening cost/forecast model, <em>Scientia Horticulturae</em> 179 <span class="tag">(abstract)</span></li>
+        <li>Sun et al. 2019 — harvest stage × cold storage, <em>Scientia Horticulturae</em> 249 <span class="tag">(abstract)</span></li>
+        <li>Owoyemi et al. 2022 — navel orange shelf-life ML, <em>Foods</em> 11(13) <span class="tag">(read in full)</span> · <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9266293/">PMC9266293</a>; Valencia companion, <em>Horticulturae</em> 8(7); dynamic-temperature follow-up, <em>PB&amp;T</em> 204 (2023)</li>
+        <li>Hasbullah &amp; Ismail 2022 — lemon Arrhenius shelf-life, <em>J. Hort. Research</em> 30(1) <span class="tag">(read in full)</span></li>
+        <li>Tijskens &amp; Polderdijk 1996 — generic keeping-quality model, <em>Agricultural Systems</em> 51(4) <span class="tag">(abstract)</span></li>
+        <li>Bao et al. 2023 — generative future-color prediction, <em>Plant Phenomics</em> 5 <span class="tag">(read in full)</span></li>
+      </ul>
+    </div>
+
+    <footer>
+      Compiled 18 August 2026 from three parallel research passes (university/extension, industry/supplier, prediction literature). Claims trace to the cited sources; where a source could only be read in abstract or snippet form, the source line says so. Known unreachables: Sunkist technical materials, Citrograph issue PDFs, several paywalled journal full texts.
+    </footer>
+  </div>
+</div>

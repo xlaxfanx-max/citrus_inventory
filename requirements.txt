@@ -1,6 +1,6 @@
 # Application runtime
 django>=6.1,<6.2
-opencv-python-headless>=4.10,<5
+opencv-python-headless>=5.0.0.93,<6
 numpy>=2.0,<3
 pillow>=10,<13
 

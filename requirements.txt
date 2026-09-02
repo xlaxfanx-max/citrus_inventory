@@ -5,7 +5,7 @@ numpy>=2.0,<3
 pillow>=10,<13
 
 # Production web, static files, Postgres, and private S3-compatible photo storage
-gunicorn>=23,<24
+gunicorn>=26.2.0,<27
 whitenoise>=6.12,<7
 psycopg[binary]>=3.2,<4
 django-storages[s3]>=1.14,<2

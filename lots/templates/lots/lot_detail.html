@@ -81,6 +81,22 @@
   {% empty %}<tr><td colspan="9" class="muted">Not sampled yet.</td></tr>{% endfor %}
   </tbody></table></div>
 
+<h2>Plan decisions</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Plan</th><th>Action</th><th>Pack by then</th><th>Decision</th><th>Reason</th><th>Planned pack</th><th>By</th><th>Notes</th></tr></thead>
+  <tbody>
+  {% for rec in plan_history %}{% with d=rec.latest_decision %}
+    <tr><td><a href="{{ rec.plan.get_absolute_url }}">v{{ rec.plan.version }}</a> <span class="muted small">{{ rec.plan.plan_date }}</span></td>
+      <td><span class="flag {% if rec.requires_decision %}red{% else %}grey{% endif %}">{{ rec.get_action_display }}</span></td>
+      <td>{{ rec.pack_by_date|default:'—' }}</td>
+      <td>{% if d %}<span class="flag {% if d.status == 'accepted' %}ok{% elif d.status == 'deferred' %}amber{% else %}red{% endif %}">{{ d.get_status_display }}</span>{% if d.after_lock %} <span class="flag grey">after lock</span>{% endif %}{% elif rec.requires_decision %}<span class="flag amber">none</span>{% else %}<span class="muted">not required</span>{% endif %}</td>
+      <td>{% if d and d.reason %}{{ d.get_reason_display }}{% else %}—{% endif %}</td>
+      <td>{% if d and d.planned_pack_date %}{{ d.planned_pack_date }}{% else %}—{% endif %}</td>
+      <td>{% if d %}{{ d.decided_by|default:'—' }} <span class="muted small">{{ d.decided_at|date:'M j H:i' }}</span>{% else %}—{% endif %}</td>
+      <td style="white-space:normal">{% if d %}{{ d.notes }}{% endif %}</td></tr>
+  {% endwith %}{% empty %}<tr><td colspan="8" class="muted">This lot has not appeared in a published plan yet.</td></tr>{% endfor %}
+  </tbody></table></div>
+
 <h2>Prediction history</h2>
 <div class="table-wrap"><table>
   <thead><tr><th>As of</th><th>Stage</th><th>CCI</th><th>Drift/day</th><th>Yellow by</th><th>Pack by</th><th>Decay</th><th>Conf.</th><th>Points</th><th>Version</th></tr></thead>

@@ -2,6 +2,7 @@ from datetime import date, datetime, time, timedelta
 
 from django.contrib.auth.models import Group, User
 from django.core import mail
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -14,7 +15,8 @@ from sampling.models import Sample, SamplePhoto
 
 from .features import environment_features
 from .model import MODEL_VERSION, decay_summary, ols, predict
-from .models import Prediction, ReportDelivery
+from .models import PackPlan, PlanAction, PlanDecision, PlanRecommendation, Prediction, ReportDelivery
+from .plans import coverage, plans_for, publish_plan, scorecard
 from .report import build_report, send_report
 from .services import rebuild_for_lot
 from .training import rows_for_lot
@@ -408,3 +410,227 @@ class AccuracyViewTests(Base):
         self.client.force_login(self.gm)
         resp = self.client.get(reverse('forecast:report_preview', args=['SLA1']))
         self.assertContains(resp, 'Pack this week')
+
+
+class PlanTests(Base):
+    """Versioned plans and the accepted / deferred / overridden decision record."""
+
+    def setUp(self):
+        self.gm = User.objects.create_user('gm', password='pw')
+        self.gm.groups.add(Group.objects.get_or_create(name='gm')[0])
+        UserProfile.objects.create(user=self.gm, plant=None)
+        self.foreman = User.objects.create_user('fm', password='pw')
+        self.foreman.groups.add(Group.objects.get_or_create(name='foreman')[0])
+        UserProfile.objects.create(user=self.foreman, plant=self.plant)
+        self.today = date.today()
+        # urgent: already past yellow -> pack overdue, needs a decision
+        self.urgent = self.make_lot('26-URG', 40, bins_received=100)
+        self.add_sample(self.urgent, 14, 1.0)
+        self.add_sample(self.urgent, 7, 3.0)
+        rebuild_for_lot(self.urgent, as_of=self.today)
+        # calm: far from yellow -> monitor, no decision needed
+        self.calm = self.make_lot('26-CALM', 10)
+        self.add_sample(self.calm, 1, -12.0)
+        rebuild_for_lot(self.calm, as_of=self.today)
+
+    def publish(self, **kw):
+        return publish_plan(self.plant, today=self.today, **kw)
+
+    def rec(self, plan, lot):
+        return plan.recommendations.get(lot=lot)
+
+    def test_publish_freezes_ranked_plan_and_versions_increment(self):
+        plan = self.publish(user=self.gm)
+        self.assertEqual((plan.version, plan.plant, plan.model_version), (1, self.plant, MODEL_VERSION))
+        self.assertEqual(plan.settings_snapshot['buffer_days'], self.settings.buffer_days)
+        recs = list(plan.recommendations.all())
+        self.assertEqual([r.lot for r in recs], [self.urgent, self.calm])
+        self.assertEqual([r.rank for r in recs], [1, 2])
+        urgent = recs[0]
+        self.assertEqual(urgent.action, PlanAction.PACK_OVERDUE)
+        self.assertTrue(urgent.requires_decision)
+        self.assertEqual(urgent.prediction, self.urgent.predictions.first())
+        self.assertEqual(urgent.pack_by_date, urgent.prediction.pack_by_date)
+        self.assertEqual(urgent.bins_remaining, 100)
+        self.assertEqual(recs[1].action, PlanAction.MONITOR)
+        self.assertFalse(recs[1].requires_decision)
+        self.assertEqual(self.publish().version, 2)
+        other = Plant.objects.create(code='SLA3', name='Plant 3')
+        self.assertEqual(publish_plan(other, today=self.today).version, 1)
+
+    def test_decision_validation_rules(self):
+        plan = self.publish()
+        rec = self.rec(plan, self.urgent)
+        with self.assertRaises(ValidationError) as ctx:
+            PlanDecision.objects.create(recommendation=rec, status=PlanDecision.Status.DEFERRED)
+        self.assertIn('reason', ctx.exception.message_dict)
+        self.assertIn('planned_pack_date', ctx.exception.message_dict)
+        with self.assertRaises(ValidationError) as ctx:
+            PlanDecision.objects.create(recommendation=rec, status=PlanDecision.Status.OVERRIDDEN, reason=PlanDecision.Reason.OTHER)
+        self.assertIn('notes', ctx.exception.message_dict)
+        with self.assertRaises(ValidationError) as ctx:
+            PlanDecision.objects.create(
+                recommendation=rec, status=PlanDecision.Status.ACCEPTED,
+                planned_pack_date=rec.pack_by_date + timedelta(days=3),
+            )
+        self.assertIn('planned_pack_date', ctx.exception.message_dict)
+        ok = PlanDecision.objects.create(recommendation=rec, status=PlanDecision.Status.ACCEPTED, decided_by=self.gm)
+        self.assertFalse(ok.after_lock)
+        self.assertTrue(ok.reason_complete)
+
+    def test_coverage_and_scorecard(self):
+        plan = self.publish()
+        rec = self.rec(plan, self.urgent)
+        self.assertEqual(coverage(plan)['actionable'], 1)
+        self.assertEqual(coverage(plan)['decided'], 0)
+        PlanDecision.objects.create(
+            recommendation=rec, status=PlanDecision.Status.DEFERRED,
+            reason=PlanDecision.Reason.CUSTOMER_ORDER, planned_pack_date=self.today + timedelta(days=10),
+        )
+        plan = plans_for(self.plant).get(pk=plan.pk)
+        cov = coverage(plan)
+        self.assertEqual((cov['decided'], cov['decided_pct'], cov['reasons_needed'], cov['reasons_complete']), (1, 100, 1, 1))
+        self.assertEqual(cov['by_status']['deferred'], 1)
+        self.assertIsNone(cov['before_lock_pct'])  # not locked
+        card = scorecard(list(plans_for(self.plant)))
+        self.assertEqual((card['plans'], card['decided_pct'], card['reasons_pct']), (1, 100, 100))
+        self.assertIsNone(card['before_lock_pct'])
+
+    def test_latest_decision_wins_and_history_is_kept(self):
+        plan = self.publish()
+        rec = self.rec(plan, self.urgent)
+        first = PlanDecision.objects.create(recommendation=rec, status=PlanDecision.Status.ACCEPTED, decided_at=timezone.now() - timedelta(hours=1))
+        second = PlanDecision.objects.create(
+            recommendation=rec, status=PlanDecision.Status.OVERRIDDEN, reason=PlanDecision.Reason.CAPACITY,
+        )
+        rec = PlanRecommendation.objects.prefetch_related('decisions').get(pk=rec.pk)
+        self.assertEqual(rec.latest_decision, second)
+        self.assertEqual(list(rec.decisions.all()), [second, first])
+
+    def test_lock_flags_late_decisions(self):
+        plan = self.publish()
+        rec = self.rec(plan, self.urgent)
+        self.client.force_login(self.gm)
+        resp = self.client.post(reverse('forecast:plan_lock', args=[plan.pk]))
+        self.assertRedirects(resp, plan.get_absolute_url())
+        plan.refresh_from_db()
+        self.assertTrue(plan.is_locked)
+        self.assertEqual(plan.locked_by, self.gm)
+        late = PlanDecision.objects.create(recommendation=rec, status=PlanDecision.Status.ACCEPTED)
+        self.assertTrue(late.after_lock)
+        plan = plans_for(self.plant).get(pk=plan.pk)
+        self.assertEqual(coverage(plan)['before_lock_pct'], 0)
+
+    def test_gm_records_decision_through_the_screen(self):
+        plan = self.publish()
+        rec = self.rec(plan, self.urgent)
+        self.client.force_login(self.gm)
+        url = reverse('forecast:plan_decide', args=[plan.pk, rec.pk])
+        prefix = f'rec{rec.pk}-'
+        # missing reason for a deferral -> re-rendered with errors
+        resp = self.client.post(url, {prefix + 'status': 'deferred', prefix + 'planned_pack_date': ''})
+        self.assertEqual(resp.status_code, 400)
+        self.assertContains(resp, 'structured reason is required', status_code=400)
+        self.assertEqual(rec.decisions.count(), 0)
+        when = (self.today + timedelta(days=9)).isoformat()
+        resp = self.client.post(url, {
+            prefix + 'status': 'deferred',
+            prefix + 'reason': 'customer_order',
+            prefix + 'planned_pack_date': when,
+            prefix + 'notes': 'Waiting on the Tuesday order.',
+        })
+        self.assertRedirects(resp, f'{plan.get_absolute_url()}#rec-{rec.pk}', fetch_redirect_response=False)
+        decision = rec.decisions.get()
+        self.assertEqual((decision.status, decision.reason, decision.decided_by), ('deferred', 'customer_order', self.gm))
+        self.assertEqual(decision.planned_pack_date.isoformat(), when)
+        detail = self.client.get(plan.get_absolute_url())
+        self.assertContains(detail, 'Customer order or ship date')
+        self.assertContains(detail, 'Waiting on the Tuesday order.')
+
+    def test_foreman_can_view_but_not_decide_publish_or_lock(self):
+        plan = self.publish()
+        rec = self.rec(plan, self.urgent)
+        self.client.force_login(self.foreman)
+        self.assertEqual(self.client.get(reverse('forecast:plan_list')).status_code, 200)
+        detail = self.client.get(plan.get_absolute_url())
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotContains(detail, 'Save decision')
+        decide = reverse('forecast:plan_decide', args=[plan.pk, rec.pk])
+        self.assertEqual(self.client.post(decide, {f'rec{rec.pk}-status': 'accepted'}).status_code, 403)
+        self.assertEqual(self.client.post(reverse('forecast:plan_publish', args=['SLA1'])).status_code, 403)
+        self.assertEqual(self.client.post(reverse('forecast:plan_lock', args=[plan.pk])).status_code, 403)
+
+    def test_pinned_user_cannot_see_another_plants_plan(self):
+        other = Plant.objects.create(code='SLA3', name='Plant 3')
+        plan = publish_plan(other, today=self.today)
+        self.client.force_login(self.foreman)
+        self.assertEqual(self.client.get(plan.get_absolute_url()).status_code, 404)
+        pinned_gm = User.objects.create_user('gm3', password='pw')
+        pinned_gm.groups.add(Group.objects.get_or_create(name='gm')[0])
+        UserProfile.objects.create(user=pinned_gm, plant=other)
+        self.client.force_login(pinned_gm)
+        self.assertEqual(self.client.post(reverse('forecast:plan_publish', args=['SLA1'])).status_code, 404)
+        self.assertEqual(self.client.get(plan.get_absolute_url()).status_code, 200)
+
+    def test_publish_from_board_and_board_shows_decisions(self):
+        self.client.force_login(self.gm)
+        board = self.client.get(reverse('lots:board') + '?plant=SLA1')
+        self.assertContains(board, 'No plan published yet')
+        resp = self.client.post(reverse('forecast:plan_publish', args=['SLA1']))
+        plan = PackPlan.objects.get()
+        self.assertRedirects(resp, plan.get_absolute_url())
+        self.assertEqual((plan.source, plan.published_by), (PackPlan.Source.BOARD, self.gm))
+        board = self.client.get(reverse('lots:board') + '?plant=SLA1')
+        self.assertContains(board, 'Plan v1')
+        self.assertEqual(board.context['plan_undecided'], 1)
+        PlanDecision.objects.create(recommendation=self.rec(plan, self.urgent), status=PlanDecision.Status.ACCEPTED)
+        board = self.client.get(reverse('lots:board') + '?plant=SLA1')
+        self.assertEqual(board.context['plan_undecided'], 0)
+        self.assertContains(board, 'Accepted')
+
+    def test_lot_detail_lists_decision_history(self):
+        plan = self.publish()
+        PlanDecision.objects.create(
+            recommendation=self.rec(plan, self.urgent), status=PlanDecision.Status.OVERRIDDEN,
+            reason=PlanDecision.Reason.QUALITY_DISAGREE, notes='Foreman says still silver.',
+        )
+        self.client.force_login(self.gm)
+        resp = self.client.get(reverse('lots:lot_detail', args=[self.urgent.pk]))
+        self.assertContains(resp, 'Foreman says still silver.')
+        self.assertContains(resp, 'Overridden')
+
+    def test_outcome_links_recommendation_to_actual_pack(self):
+        plan = self.publish()
+        rec = self.rec(plan, self.urgent)
+        self.assertEqual(rec.outcome(self.today)['status'], 'in_storage')
+        packed = self.today + timedelta(days=2)
+        self.urgent.status = Lot.Status.PACKED
+        self.urgent.packed_date = packed
+        self.urgent.save()
+        rec = PlanRecommendation.objects.get(pk=rec.pk)
+        out = rec.outcome(packed)
+        self.assertEqual(out['status'], 'packed')
+        self.assertEqual(out['days_after_pack_by'], (packed - rec.pack_by_date).days)
+
+    def test_monday_report_publishes_plan_and_links_to_it(self):
+        n = send_report(self.plant, today=self.today)
+        self.assertEqual(n, 2)
+        plan = PackPlan.objects.get()
+        self.assertEqual(plan.source, PackPlan.Source.REPORT)
+        html = mail.outbox[0].alternatives[0][0]
+        self.assertIn(plan.get_absolute_url(), html)
+        self.assertIn('Plan v1', html)
+        self.assertIn('Plan v1', mail.outbox[0].body)
+        # a duplicate send neither emails again nor publishes another version
+        self.assertEqual(send_report(self.plant, today=self.today), -1)
+        self.assertEqual(PackPlan.objects.count(), 1)
+
+    def test_publish_plan_command(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command('publish_plan', plant='sla1', stdout=out)
+        self.assertIn('plan v1 published', out.getvalue())
+        self.assertEqual(PackPlan.objects.get().source, PackPlan.Source.COMMAND)

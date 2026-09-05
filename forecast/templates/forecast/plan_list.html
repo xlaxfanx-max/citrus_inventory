@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Plans{% endblock %}
+{% block content %}
+<div class="toolbar spread" style="align-items:flex-start">
+  <div>
+    <p class="eyebrow">{% if plant %}{{ plant.code }} · {{ plant.name }}{% else %}All plants{% endif %}</p>
+    <h2 class="screen-title">Plan versions and decisions</h2>
+    <p class="lede">Every published packing plan, what management decided on each recommendation, and how the pilot scorecard is tracking.</p>
+  </div>
+  {% if is_gm and plant %}
+  <form method="post" action="{% url 'forecast:plan_publish' plant.code %}">{% csrf_token %}<button class="btn" type="submit">Publish plan now</button></form>
+  {% endif %}
+</div>
+
+{% if plants %}
+<form method="get" class="filter-bar" aria-label="Choose plant">
+  <div><label for="plant-filter">Plant</label><select id="plant-filter" name="plant" onchange="this.form.submit()">
+    {% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}
+  </select></div>
+  <noscript><button class="btn" type="submit">Apply</button></noscript>
+</form>
+{% endif %}
+
+<div class="tiles" aria-label="Decision scorecard">
+  <div class="tile"><div class="num">{{ scorecard.plans }}</div><div class="label">Plan versions</div></div>
+  <div class="tile {% if scorecard.decided_pct is not None and scorecard.decided_pct < 95 %}amber{% endif %}"><div class="num">{% if scorecard.decided_pct is not None %}{{ scorecard.decided_pct }}%{% else %}—{% endif %}</div><div class="label">Recommendations with a decision · {{ scorecard.decided }} of {{ scorecard.actionable }} · target 95%</div></div>
+  <div class="tile {% if scorecard.reasons_pct is not None and scorecard.reasons_pct < 95 %}amber{% endif %}"><div class="num">{% if scorecard.reasons_pct is not None %}{{ scorecard.reasons_pct }}%{% else %}—{% endif %}</div><div class="label">Override and deferral reasons complete · {{ scorecard.reasons_complete }} of {{ scorecard.reasons_needed }} · target 95%</div></div>
+  <div class="tile"><div class="num">{% if scorecard.before_lock_pct is not None %}{{ scorecard.before_lock_pct }}%{% else %}—{% endif %}</div><div class="label">Decided before schedule lock{% if scorecard.before_lock_pct is None %} · no locked plans yet{% endif %}</div></div>
+</div>
+
+<h2>Versions</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Version</th><th>Plan date</th><th>Source</th><th>Published by</th><th>Lots</th><th>Need decision</th><th>Decided</th><th>Accepted / deferred / overridden</th><th>Lock</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><a href="{{ r.plan.get_absolute_url }}"><strong>v{{ r.plan.version }}</strong></a></td>
+      <td>{{ r.plan.plan_date|date:'D M j' }}</td>
+      <td>{{ r.plan.get_source_display }}</td>
+      <td>{{ r.plan.published_by|default:'system' }}</td>
+      <td>{{ r.coverage.total }}</td>
+      <td>{{ r.coverage.actionable }}</td>
+      <td>{% if r.coverage.actionable %}<span class="flag {% if r.coverage.undecided == 0 %}ok{% else %}amber{% endif %}">{{ r.coverage.decided }} of {{ r.coverage.actionable }}</span>{% else %}<span class="muted">none needed</span>{% endif %}</td>
+      <td>{{ r.coverage.by_status.accepted }} / {{ r.coverage.by_status.deferred }} / {{ r.coverage.by_status.overridden }}</td>
+      <td>{% if r.plan.is_locked %}<span class="flag grey">locked {{ r.plan.locked_at|date:'M j H:i' }}</span>{% else %}<span class="muted">open</span>{% endif %}</td>
+      <td><a class="btn ghost small-btn" href="{{ r.plan.get_absolute_url }}">{% if is_gm and r.coverage.undecided %}Record decisions{% else %}Review{% endif %}</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="10" class="muted">No plan has been published for this plant yet. The Monday report publishes one automatically{% if is_gm %}, or publish one now from the button above{% endif %}.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="muted small">A plan is a frozen copy of the ranked board at the moment it was published. Decisions are add-only: a change of mind is recorded as a new decision and the previous one stays in the history.</p>
+{% endblock %}

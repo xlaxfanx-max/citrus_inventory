@@ -1,15 +1,19 @@
 from datetime import date
 
+from django.contrib import messages
 from django.db.models import OuterRef, Prefetch, Q
 from django.http import Http404
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from lots.models import Lot, LotTreatment, Plant, RoomCondition, plant_for
-from lots.roles import ADMIN, GM, group_required, resolve_plant
+from lots.roles import ADMIN, FOREMAN, GM, group_required, is_gm, resolve_plant
 from sampling.models import Sample
 
-from .models import Prediction
+from .forms import PlanDecisionForm
+from .models import PackPlan, PlanRecommendation, Prediction
+from .plans import coverage as plan_coverage, plans_for, publish_plan, scorecard
 from .report import build_report
 
 
@@ -178,3 +182,107 @@ def report_preview(request, code):
             pass
     data = build_report(plant, today=today)
     return render(request, 'forecast/report_email.html', {**data, 'standalone': False})
+
+
+# --- Versioned plans and the management decision record ---------------------
+
+
+def _plan_or_404(request, pk):
+    plan = get_object_or_404(plans_for(None), pk=pk)
+    pinned = plant_for(request.user)
+    if pinned is not None and plan.plant_id != pinned.id:
+        raise Http404
+    return plan
+
+
+@group_required(FOREMAN, GM, ADMIN)
+def plan_list(request):
+    plant, plants = resolve_plant(request)
+    plans = list(plans_for(plant)[:52])
+    rows = [{'plan': p, 'coverage': plan_coverage(p)} for p in plans]
+    return render(request, 'forecast/plan_list.html', {
+        'plant': plant,
+        'plants': plants,
+        'rows': rows,
+        'scorecard': scorecard(plans),
+    })
+
+
+def _plan_context(request, plan, forms=None):
+    forms = forms or {}
+    today = timezone.localdate()
+    can_decide = is_gm(request.user)
+    rows = []
+    for rec in plan.recommendations.all():
+        form = None
+        if can_decide and rec.requires_decision:
+            form = forms.get(rec.pk) or PlanDecisionForm(recommendation=rec, user=request.user, prefix=f'rec{rec.pk}')
+        rows.append({
+            'rec': rec,
+            'decision': rec.latest_decision,
+            'history': list(rec.decisions.all()),
+            'outcome': rec.outcome(today),
+            'form': form,
+        })
+    cov = plan_coverage(plan)
+    return {
+        'plan': plan,
+        'rows': rows,
+        'coverage': cov,
+        'other_count': cov['total'] - cov['actionable'],
+        'can_decide': can_decide,
+        'today': today,
+        'open_rec': request.GET.get('open') or '',
+    }
+
+
+@group_required(FOREMAN, GM, ADMIN)
+def plan_detail(request, pk):
+    plan = _plan_or_404(request, pk)
+    return render(request, 'forecast/plan_detail.html', _plan_context(request, plan))
+
+
+@group_required(GM, ADMIN)
+@require_POST
+def plan_publish(request, code):
+    plant = get_object_or_404(Plant, code=code)
+    pinned = plant_for(request.user)
+    if pinned is not None and pinned.pk != plant.pk:
+        raise Http404
+    plan = publish_plan(plant, user=request.user, source=PackPlan.Source.BOARD)
+    n = sum(1 for r in plan.recommendations.all() if r.requires_decision)
+    messages.success(request, f'Plan v{plan.version} published for {plant.code}: {n} recommendation{"s" if n != 1 else ""} need a decision.')
+    return redirect(plan)
+
+
+@group_required(GM, ADMIN)
+@require_POST
+def plan_lock(request, pk):
+    plan = _plan_or_404(request, pk)
+    if plan.is_locked:
+        messages.warning(request, f'Plan v{plan.version} was already locked at {timezone.localtime(plan.locked_at):%b %d %H:%M}.')
+    else:
+        plan.locked_at = timezone.now()
+        plan.locked_by = request.user
+        plan.save(update_fields=['locked_at', 'locked_by'])
+        undecided = plan_coverage(plan)['undecided']
+        if undecided:
+            messages.warning(request, f'Schedule locked with {undecided} recommendation{"s" if undecided != 1 else ""} still undecided. Decisions recorded from now on are flagged as after the lock.')
+        else:
+            messages.success(request, 'Schedule locked. Every recommendation had a decision on record.')
+    return redirect(plan)
+
+
+@group_required(GM, ADMIN)
+@require_POST
+def plan_decide(request, pk, rec_pk):
+    plan = _plan_or_404(request, pk)
+    rec = get_object_or_404(PlanRecommendation, pk=rec_pk, plan=plan)
+    form = PlanDecisionForm(request.POST, recommendation=rec, user=request.user, prefix=f'rec{rec.pk}')
+    if form.is_valid():
+        decision = form.save()
+        messages.success(request, f'Lot {rec.lot.lot_no}: {decision.get_status_display().lower()}.')
+        return redirect(f'{plan.get_absolute_url()}#rec-{rec.pk}')
+    context = _plan_context(request, plan, forms={rec.pk: form})
+    context['open_rec'] = str(rec.pk)
+    return render(request, 'forecast/plan_detail.html', context, status=400)

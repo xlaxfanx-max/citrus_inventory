@@ -29,6 +29,7 @@ Record the actual selection method and number of bins represented in the capture
 - On the final run, use `is_final=yes` and record direct packout color, decay, softness, shrivel, chilling injury, specification result and a structured downgrade reason where known.
 - Maintain representative shelf-life holdouts past the commercial pack date and record the first assessment that fails the written specification.
 - Record plant weekly capacity in Settings so the board exposes overload weeks.
+- Review the Monday plan version with the GM before the schedule is locked. Record accepted, deferred or overridden on every pack and decay recommendation at `/plans/`, with the structured reason for each deferral or override, then lock the schedule. Decisions recorded after the lock are flagged.
 
 ## Validation gates
 
@@ -43,7 +44,7 @@ Minimum gates before operational use:
 - Errors reviewed separately by plant, room, variety and phone/board combination.
 - Predictions evaluated from fixed lead times (7, 14 and 28 days), not only from the last prediction before management packed the lot.
 - Entire lots kept within one split, with a future time or season block reserved for the final test.
-- A documented override process: the GM remains responsible for the schedule and records why a recommendation was overridden.
+- A documented override process: the GM remains responsible for the schedule and records why a recommendation was overridden. The application enforces this: a deferral or override cannot be saved without a structured reason, and the `/plans/` scorecard reports decision coverage, reason completion and decided-before-lock against the 95 percent targets.
 
 ## Next model decision
 

@@ -124,6 +124,7 @@
   <nav>
     {% if user.is_authenticated %}
       <a href="{% url 'lots:board' %}" class="{% if request.resolver_match.url_name == 'board' %}active{% endif %}">Plan</a>
+      <a href="{% url 'forecast:plan_list' %}" class="{% if request.resolver_match.url_name|slice:':5' == 'plan_' %}active{% endif %}">Decisions</a>
       {% if is_foreman %}<a href="{% url 'sampling:picker' %}" class="{% if request.resolver_match.app_name == 'sampling' %}active{% endif %}">Samples</a>{% endif %}
       {% if is_gm %}<a href="{% url 'lots:imports' %}" class="{% if 'import' in request.resolver_match.url_name %}active{% endif %}">Imports</a>
       <a href="{% url 'forecast:accuracy' %}" class="{% if request.resolver_match.url_name == 'accuracy' %}active{% endif %}">Validation</a>{% endif %}

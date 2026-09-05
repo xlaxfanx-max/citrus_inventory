@@ -5,6 +5,7 @@
   {% if not standalone %}<p style="font-size:13px"><a href="{{ board_url }}" style="color:#3a6b35">← Board</a> · preview of the email that goes out Monday 05:30</p>{% endif %}
   <h1 style="font-size:20px;margin:0 0 4px">🍋 {{ plant.code }} {{ plant.name }} · week of {{ today|date:'M j, Y' }}</h1>
   <p style="margin:0 0 16px;color:#6b7566">{{ n_lots }} lots in storage · <a href="{{ board_url }}" style="color:#3a6b35">open the plant board</a></p>
+  {% if plan %}<p style="margin:0 0 12px;padding:10px 12px;background:#edf3e9;border-radius:8px"><strong>Plan v{{ plan.version }}</strong> · {{ plan_actionable }} recommendation{{ plan_actionable|pluralize }} need{{ plan_actionable|pluralize:'s,' }} a management decision before the schedule is locked · <a href="{{ plan_url }}" style="color:#3a6b35">record decisions</a></p>{% endif %}
   <p style="margin:0 0 16px;color:#6b7566">{{ to_pack_bins|floatformat:1 }} known bins due this week{% if to_pack_bins_unknown %} · {{ to_pack_bins_unknown }} due lot{{ to_pack_bins_unknown|pluralize }} with unknown quantity{% endif %}{% if weekly_capacity_bins is not None %} · {{ weekly_capacity_bins|floatformat:1 }} bins weekly capacity{% endif %}</p>
 
   <h2 style="font-size:16px;margin:18px 0 6px;color:#a13c2a">Pack this week · {{ to_pack|length }} lots (pack-by within 7 days)</h2>

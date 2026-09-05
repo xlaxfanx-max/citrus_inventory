@@ -35,6 +35,19 @@
   <div class="tile amber"><div class="num">{{ n_failed }}</div><div class="label">Photos to retake</div></div>
 </div>
 
+{% if plant %}<div class="card status-row" style="margin:.9rem 0 .4rem;border-left:5px solid {% if plan and plan_undecided %}var(--warn-ink){% elif plan %}var(--accent){% else %}var(--muted){% endif %}">
+  <div>
+    <span class="eyebrow">Management decisions</span>
+    {% if plan %}<strong>Plan v{{ plan.version }} · {{ plan.plan_date|date:'D M j' }}{% if plan.is_locked %} · schedule locked{% endif %}</strong><br>
+      <span class="muted small">{% if plan_undecided %}{{ plan_undecided }} recommendation{{ plan_undecided|pluralize }} on the live board still ha{{ plan_undecided|pluralize:'s,ve' }} no decision recorded.{% else %}Every pack and decay recommendation on the live board has a recorded decision.{% endif %}</span>
+    {% else %}<strong>No plan published yet</strong><br><span class="muted small">Publish a plan to freeze this ranking and record accept, defer or override decisions against it.</span>{% endif %}
+  </div>
+  <div class="toolbar" style="margin:0">
+    {% if plan %}<a class="btn ghost small-btn" href="{{ plan.get_absolute_url }}">{% if is_gm and plan_undecided %}Record decisions{% else %}Review plan{% endif %}</a>{% endif %}
+    {% if is_gm %}<form method="post" action="{% url 'forecast:plan_publish' plant.code %}">{% csrf_token %}<button class="btn small-btn" type="submit">Publish plan{% if plan %} v{{ plan.version|add:1 }}{% endif %}</button></form>{% endif %}
+  </div>
+</div>{% endif %}
+
 <h2>Needs attention</h2>
 <nav class="filters" aria-label="Attention filters">
   <a class="filter-chip {% if attention == 'all' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=all">All <span>{{ count_all }}</span></a>
@@ -52,7 +65,9 @@
   <tbody>
   {% for r in rows %}
     <tr class="{{ r.urgency }}">
-      <td><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span></td>
+      <td><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span>
+        {% if r.decision %}<br><span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}grey{% endif %} small" title="{{ r.decision.get_reason_display }}">{{ r.decision.get_status_display }}{% if r.decision.planned_pack_date %} → {{ r.decision.planned_pack_date|date:'M j' }}{% endif %}</span>
+        {% elif r.requires_decision and plan %}<br><span class="muted small">no decision</span>{% endif %}</td>
       <td><a href="{% url 'lots:lot_detail' r.lot.pk %}"><strong>{{ r.lot.lot_no }}</strong></a>
         {% if r.lot.is_partially_packed %}<span class="flag grey">partial</span>{% endif %}<br>
         <span class="small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></td>
@@ -83,7 +98,7 @@
   {% for r in rows %}
   <article class="card lot-card">
     <div class="lot-card-head">
-      <div><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span><h3 style="margin-top:.45rem">Lot {{ r.lot.lot_no }}</h3><span class="muted small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></div>
+      <div><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span>{% if r.decision %} <span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}grey{% endif %}">{{ r.decision.get_status_display }}</span>{% endif %}<h3 style="margin-top:.45rem">Lot {{ r.lot.lot_no }}</h3><span class="muted small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></div>
       {% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.stage }}</span>{% endif %}
     </div>
     <div class="meta-grid">

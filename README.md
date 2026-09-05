@@ -1,6 +1,6 @@
 # Saticoy lemon storage decision support
 
-Tracks color and quality per lemon lot, reconstructs room and treatment exposure, projects when each lot will cross to yellow, and gives the GM and foremen a ranked pack list every Monday. It records direct packout and shelf-life outcomes so a remaining-marketable-life model can be developed and validated without losing the current benchmark.
+Tracks color and quality per lemon lot, reconstructs room and treatment exposure, projects when each lot will cross to yellow, and gives the GM and foremen a ranked pack list every Monday. Each published plan is a frozen version the GM records accepted, deferred or overridden decisions against, so every recommendation can be tied to what management did and to the lot's eventual outcome. It records direct packout and shelf-life outcomes so a remaining-marketable-life model can be developed and validated without losing the current benchmark.
 
 - Spec: [docs/v1-build-spec.md](docs/v1-build-spec.md)
 - Business validation and product action plan: [docs/business-action-plan.md](docs/business-action-plan.md)
@@ -52,7 +52,8 @@ Use `sh scripts/release.sh` as the host's release command and `sh scripts/web.sh
 | URL | Who | What |
 |---|---|---|
 | `/` | everyone logged in | Packing plan ranked by next action, with search, room/plant controls and attention filters; responsive cards on phones |
-| `/lot/<id>/` | everyone | CCI chart, intake data, room exposure, treatments, sample quality, prediction history and packout outcomes |
+| `/lot/<id>/` | everyone | CCI chart, intake data, room exposure, treatments, sample quality, plan decisions, prediction history and packout outcomes |
+| `/plans/` | everyone (decide: gm, admin) | Every published plan version with the decision scorecard; `/plans/<id>/` records accepted / deferred / overridden per recommendation and locks the week's schedule |
 | `/capture/` | foreman, gm, admin | Prioritized daily sample route, live search and the one-minute capture flow |
 | `/imports/` | gm, admin | Upload receiving, packout, room-move, room-condition and treatment CSVs; download templates and inspect row errors |
 | `/accuracy/` | gm, admin | Forecast validation plus per-lot readiness for intake, environment, representative sampling, packout and holdout labels |
@@ -71,8 +72,10 @@ Three management commands, scheduled with cron or Windows Task Scheduler in `Ame
 ```
 * * * * *    manage.py score_photos            # photos scored within ~1 minute of upload
 15 2 * * *   manage.py build_predictions       # nightly rebuild for every in-storage lot
-30 5 * * 1   manage.py send_monday_report      # per-plant HTML email, Monday 05:30
+30 5 * * 1   manage.py send_monday_report      # per-plant HTML email, Monday 05:30; publishes the week's plan version
 ```
+
+`publish_plan [--plant SLA1] [--date YYYY-MM-DD]` freezes the current ranked board as a new plan version without emailing; the Monday report does the same automatically and links to the version it sent.
 
 `score_photos` also rebuilds the lot's prediction immediately after a usable photo scores. Pending photos are claimed transactionally, abandoned claims recover after 20 minutes, and transient storage reads retry up to three times. `score_photos --rescore` re-runs every stored photo by default. `send_monday_report --dry-run` prints the text version; successful plant/date deliveries are idempotent unless `--force` is supplied.
 
@@ -106,6 +109,14 @@ Board geometry is defined once in `sampling/board.py` and shared by the detector
 
 Every prediction stores its model version, settings, sample/photo provenance, per-fruit CCI distribution, and the room/treatment/intake feature snapshot that was knowable that day. These new features are deliberately not applied to pack dates until a challenger model passes held-out validation.
 
+## Plans and management decisions
+
+The ranked board is advisory. Publishing a plan (from the board, the Monday report, or `publish_plan`) freezes it as a numbered version per plant with the prediction, pack-by date, stage, confidence, bins and room each recommendation rested on, plus the model version and settings in force. Recommendations that ask for a pack this week, flag an overdue lot, or flag decay require a decision; the rest are monitoring and sampling actions and do not.
+
+The GM records one of three decisions per recommendation on `/plans/<id>/`: **accepted**, **deferred** (needs a structured reason and the planned pack date), or **overridden** (needs a structured reason). Reasons are customer order, size/grade demand, capacity, changeover, disagreement with the model call, holding for color, logistics, data issue, or other with notes. Decisions are add-only: a change of mind is a new row and the previous one stays in the history. Locking the schedule stamps the plan; decisions recorded afterwards are flagged as after the lock. The plan screen also shows each lot's eventual outcome (packed date versus pack-by, or days past pack-by while still in storage).
+
+`/plans/` shows the pilot scorecard over all versions: recommendations with a recorded decision, deferral and override reasons complete, and decisions made before the schedule lock, each against the 95 percent target in the action plan. The live board shows the current plan's decision beside each lot's priority.
+
 ## Training export
 
 Export one leakage-safe feature row per non-void sample:
@@ -135,10 +146,12 @@ All configuration comes from environment variables; nothing set means the develo
 config/      settings, urls
 lots/        Plant, Room, RoomCondition, Grower, Lot, LotRoomMove, LotTreatment, Packout, ImportBatch,
              UserProfile, ModelSettings;
-             importers/, board + lot detail + imports + settings views, seed and role commands
+             importers/, planning.py (ranked actions shared by the board and plan snapshots),
+             board + lot detail + imports + settings views, seed and role commands
 sampling/    Sample, SamplePhoto; board geometry, scoring pipeline, capture flow, score_photos
-forecast/    Prediction, ReportDelivery; drift model, point-in-time features, training export, SVG chart,
-             Monday report, validation view, build_predictions, send_monday_report
+forecast/    Prediction, ReportDelivery, PackPlan, PlanRecommendation, PlanDecision; drift model,
+             point-in-time features, training export, SVG chart, Monday report, validation view,
+             versioned plans + decision record (plans.py), build_predictions, send_monday_report, publish_plan
 templates/   base layout and login
 static/      PWA manifest and icons
 hardware/    board.svg, make_board.py, station notes

@@ -18,7 +18,8 @@ from django.utils import timezone
 from lots.models import Lot, ModelSettings
 from sampling.models import Sample
 
-from .models import Prediction, ReportDelivery
+from .models import PackPlan, Prediction, ReportDelivery
+from .plans import publish_plan
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def latest_samples(lots):
     return out
 
 
-def build_report(plant, today=None, settings=None):
+def build_report(plant, today=None, settings=None, plan=None):
     today = today or timezone.localdate()
     settings = settings or ModelSettings.get()
     week_ago = today - timedelta(days=7)
@@ -82,6 +83,9 @@ def build_report(plant, today=None, settings=None):
         'today': today,
         'week_ago': week_ago,
         'board_url': f'{django_settings.SITE_URL}{reverse("lots:board")}?plant={plant.code}',
+        'plan': plan,
+        'plan_url': f'{django_settings.SITE_URL}{plan.get_absolute_url()}' if plan else '',
+        'plan_actionable': sum(1 for r in plan.recommendations.all() if r.requires_decision) if plan else 0,
         'n_lots': len(lots),
         'to_pack': to_pack,
         'to_pack_bins': to_pack_bins,
@@ -108,16 +112,17 @@ def send_report(plant, today=None, force=False):
     the plant has none configured)."""
     today = today or timezone.localdate()
     recipients = plant.recipient_list
-    data = build_report(plant, today=today)
-    subject, html, text = render_report(data)
-    delivery, _ = ReportDelivery.objects.get_or_create(
-        plant=plant,
-        report_date=today,
-        defaults={'recipients': recipients, 'subject': subject},
-    )
-    if delivery.status == ReportDelivery.Status.SENT and not force:
+    delivery = ReportDelivery.objects.filter(plant=plant, report_date=today).first()
+    if delivery and delivery.status == ReportDelivery.Status.SENT and not force:
         logger.info('plant %s report for %s already sent; skipping duplicate', plant.code, today)
         return -1
+    # The report is the weekly recommendation, so it publishes the plan
+    # version the GM records decisions against.
+    plan = publish_plan(plant, today=today, source=PackPlan.Source.REPORT)
+    data = build_report(plant, today=today, plan=plan)
+    subject, html, text = render_report(data)
+    if delivery is None:
+        delivery = ReportDelivery.objects.create(plant=plant, report_date=today, recipients=recipients, subject=subject)
     delivery.recipients = recipients
     delivery.subject = subject
     delivery.attempts += 1

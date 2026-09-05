@@ -64,7 +64,8 @@ The current “fresh is roughly ten times products” assumption must not be use
 - Packout, direct-quality, representative-sample, and shelf-life-holdout fields.
 - Leakage-safe training export and model provenance.
 - Production container, deployment checks, health endpoints, and backup/rollback guidance.
-- Seventy-nine passing automated tests as of this draft.
+- Versioned plan snapshots with an add-only accepted / deferred / overridden decision record, structured override reasons, schedule lock, outcome linkage, and the decision scorecard (added 5 September 2026).
+- Ninety-six passing automated tests as of 5 September 2026.
 
 ### What is not yet proven
 
@@ -74,7 +75,7 @@ The current “fresh is roughly ten times products” assumption must not be use
 - A ten-fruit sample is not a precise estimate of low-percent decay or other rare defects.
 - There are currently no live room-condition or treatment records in the local dataset.
 - CSV exchange is not yet an operational integration with Famous.
-- The application does not record whether management accepted, deferred, or overrode each recommendation.
+- The decision record exists but has no field history yet; the scorecard targets remain unproven until the pilot runs.
 - The ranked list does not yet incorporate customer commitments, size/grade demand, line availability, or changeover cost.
 
 ## 5. Scope
@@ -141,8 +142,8 @@ The current “fresh is roughly ten times products” assumption must not be use
 
 **Required product work during Phase 1:**
 
-1. Recommendation-plan versioning and decision history.
-2. Accepted/deferred/overridden status with structured reason and notes.
+1. Recommendation-plan versioning and decision history. *Built 5 September 2026.*
+2. Accepted/deferred/overridden status with structured reason and notes. *Built 5 September 2026.*
 3. Board, phone, light, and calibration identifiers on each photo.
 4. Data-freshness and missing-import warnings.
 5. Offline upload queue with visible retry status, or a documented and tested equivalent if network coverage is fully reliable.

@@ -1,6 +1,7 @@
 {{ plant.code }} {{ plant.name }} - lemon storage report, week of {{ today }}
 {{ n_lots }} lots in storage. Board: {{ board_url }}
-{{ to_pack_bins|floatformat:1 }} known bins due this week{% if to_pack_bins_unknown %}; {{ to_pack_bins_unknown }} due lot(s) have unknown quantity{% endif %}{% if weekly_capacity_bins is not None %}; weekly capacity {{ weekly_capacity_bins|floatformat:1 }} bins{% endif %}.
+{% if plan %}Plan v{{ plan.version }}: {{ plan_actionable }} recommendation(s) need a management decision. Record them: {{ plan_url }}
+{% endif %}{{ to_pack_bins|floatformat:1 }} known bins due this week{% if to_pack_bins_unknown %}; {{ to_pack_bins_unknown }} due lot(s) have unknown quantity{% endif %}{% if weekly_capacity_bins is not None %}; weekly capacity {{ weekly_capacity_bins|floatformat:1 }} bins{% endif %}.
 
 PACK THIS WEEK ({{ to_pack|length }})
 {% for pack_by, lot, pred, sample in to_pack %}  {{ pack_by }}  {{ lot.lot_no }}  {{ lot.grower.name }}  {{ lot.current_room|default:'-' }}  {{ lot.weeks_in_storage }} wk  {{ pred.get_stage_display }} CCI {{ pred.cci_now|floatformat:1 }} ({{ pred.confidence }}){% if sample %}  foreman {{ sample.foreman_color }} {{ sample.foreman_pack_within_weeks }} wk{% endif %}

@@ -220,7 +220,7 @@ class PackoutImportTests(Base):
 
 class RoomMovesImportTests(Base):
     def test_moves_update_current_room(self):
-        lot = self.make_lot('26-1001')
+        lot = self.make_lot('26-1001', receive_date=date(2026, 8, 10))
         rows = csv_rows("plant_code,lot_no,room,moved_at\nSLA1,26-1001,Cold 2,2026-08-20\nSLA1,26-1001,Cold 1,2026-08-15")
         ok, errors = room_moves.run(rows)
         self.assertEqual((ok, errors), (2, []))

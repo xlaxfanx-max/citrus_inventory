@@ -4,6 +4,7 @@ Tracks color and quality per lemon lot, reconstructs room and treatment exposure
 
 - Spec: [docs/v1-build-spec.md](docs/v1-build-spec.md)
 - Business validation and product action plan: [docs/business-action-plan.md](docs/business-action-plan.md)
+- Pre-meeting preparation and verification: [docs/premeeting-verification-2026-09-06.md](docs/premeeting-verification-2026-09-06.md)
 - Review, decisions and deviations: [docs/spec-review-2026-09-01.md](docs/spec-review-2026-09-01.md)
 - Field pilot and calibration gate: [docs/pilot-calibration-protocol.md](docs/pilot-calibration-protocol.md)
 - Prediction V2 data and validation protocol: [docs/prediction-v2-data-protocol.md](docs/prediction-v2-data-protocol.md)
@@ -54,9 +55,10 @@ Use `sh scripts/release.sh` as the host's release command and `sh scripts/web.sh
 | `/` | everyone logged in | Packing plan ranked by next action, with search, room/plant controls and attention filters; responsive cards on phones |
 | `/lot/<id>/` | everyone | CCI chart, intake data, room exposure, treatments, sample quality, plan decisions, prediction history and packout outcomes |
 | `/plans/` | everyone (decide: gm, admin) | Every published plan version with the decision scorecard; `/plans/<id>/` records accepted / deferred / overridden per recommendation and locks the week's schedule |
-| `/capture/` | foreman, gm, admin | Prioritized daily sample route, live search and the one-minute capture flow |
+| `/capture/` | foreman, gm, admin | Prioritized daily sample route, live search and phone capture flow |
 | `/imports/` | gm, admin | Upload receiving, packout, room-move, room-condition and treatment CSVs; download templates and inspect row errors |
 | `/accuracy/` | gm, admin | Forecast validation plus per-lot readiness for intake, environment, representative sampling, packout and holdout labels |
+| `/readiness/` | gm, admin | Current evidence coverage, station calibrations, direct outcomes, source upload age and lots awaiting evidence; coverage is distinct from accuracy |
 | `/settings/` | admin | Stage thresholds, priors, buffers, plant weekly capacity and report recipients |
 | `/report/<plant code>/` | gm, admin | Preview of the Monday report email |
 | `/admin/` | staff | Django admin for everything else (users, plants, rooms, growers) |
@@ -91,6 +93,8 @@ Download the current templates from `/imports/`. Required headers must be presen
 
 Imports are idempotent on plant code + lot number. Bad rows are skipped and listed with their spreadsheet row number; good rows go in. Every upload is recorded as an `ImportBatch`.
 
+Room moves accept ISO timestamps with offsets, local timestamps, or date-only values. Exact times are preserved in `occurred_at`; the legacy date stays in `moved_at`. Date-only history is labelled approximate. Receiving re-imports cannot change a known current room: import the actual room movement first. Packout files must contain complete **daily totals per lot**, not individual same-day run rows. Whole-number counts reject fractional, NaN and infinite values.
+
 ## Scoring pipeline
 
 `sampling/scoring.py`, run by `score_photos`, never in a request:
@@ -105,7 +109,11 @@ Board geometry is defined once in `sampling/board.py` and shared by the detector
 
 ## Prediction
 
-`forecast/model.py` remains the operational benchmark, with one `Prediction` per lot per day. Points are (days since receipt, mean CCI) from usable, non-void photos. Fewer than two points uses the prior drift for the receiving color (confidence low); two or more fit a line through the last five (medium; high with four or more points and R² above 0.7). A flat or negative fit falls back to the prior. Yellow date is where the line reaches the yellow threshold; estimates beyond the configured horizon are shown as “beyond horizon” rather than as a fabricated date. Pack-by is yellow minus buffer days. Decay is summarized over the last two samples and displayed as observed percent. Foreman calls are never inputs.
+`forecast/model.py` is the `v1.1-linear-cci` benchmark, with one `Prediction` per lot per day. Points come only from usable, non-void **routine** samples; multiple visits on the same day are averaged into one point. Fewer than two days uses a receiving-color prior; otherwise the last five days fit a line. Four points and R² above 0.7 describe strong trend fit, not a calibrated probability of biological accuracy. Stale observations lower support. Flat/negative fits use the prior. Yellow crossing dates remain anchored to observations as time passes, including crossings in the past. Beyond-horizon estimates have no date. Pack-by remains an indicative color date minus a buffer, not a validated quality deadline.
+
+The board, plan publication and report share an evidence gate: forecasts must use the current model, be no more than one day old, have observations on two separate routine sample days, and have a usable sample newer than the configured resampling interval. Failed latest photos require a retake. Dates that fail these checks do not contribute to due-date or capacity totals. Observed decay still requests inspection. Foremen can record **Today** or one to eight weeks; these observations never enter the color model. Holdouts remain available after final packing and do not rebuild the operational forecast or reset the routine sample route.
+
+Register instrument-measured board/phone/light versions under **Admin → Board calibrations**. Select the matching setup during capture. Its references are copied onto each photo and used when scoring or rescoring; calibration records are immutable except for retirement. Without measured references, the nominal targets remain available for exploratory demonstrations, with an uncalibrated label. Physical calibration, independent instrument agreement and forecast validation are separate steps.
 
 Every prediction stores its model version, settings, sample/photo provenance, per-fruit CCI distribution, and the room/treatment/intake feature snapshot that was knowable that day. These new features are deliberately not applied to pack dates until a challenger model passes held-out validation.
 
@@ -125,7 +133,7 @@ Export one leakage-safe feature row per non-void sample:
 .venv\Scripts\python.exe manage.py export_training_data --output artifacts\prediction-training.csv
 ```
 
-Add `--plant SLA1` to restrict the export. Predictors are point-in-time snapshots; later final packout and first holdout failure are label columns. Keep exports out of source control and follow the [V2 protocol](docs/prediction-v2-data-protocol.md) before training or promoting a replacement model.
+Add `--plant SLA1` to restrict the export. Rows reconstruct features by event date; later final packout and first holdout failure are label columns. This is not yet a guarantee that every input was available when a historical prediction was made. Audit late entries, same-day timing and holdout separation, keep exports out of source control, and follow the [V2 protocol](docs/prediction-v2-data-protocol.md) before training or promoting a replacement model.
 
 ## Configuration
 
@@ -139,6 +147,8 @@ All configuration comes from environment variables; nothing set means the develo
 | `SUPABASE_S3_ENDPOINT`, `SUPABASE_S3_BUCKET`, `SUPABASE_S3_ACCESS_KEY`, `SUPABASE_S3_SECRET_KEY`, `SUPABASE_S3_REGION` | Supabase Storage through its S3 endpoint, private bucket, signed URLs; needs `pip install django-storages[s3]` |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | SMTP for the Monday report |
 | `PORT`, `WEB_CONCURRENCY`, `GUNICORN_THREADS`, `GUNICORN_TIMEOUT`, `DJANGO_LOG_LEVEL` | Container web process and logging tuning |
+| `DEMO_MODE` | Defaults to debug mode. Displays a demonstration notice in the app and reports; use a separate clean database for real pilot data |
+| `DATABASE_SSLMODE` | Development/CI database transport setting; production always requires SSL |
 
 ## Layout
 

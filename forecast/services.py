@@ -12,7 +12,7 @@ from .features import features_for_lot
 
 def lot_points_with_sources(lot, up_to=None):
     """Return model points plus the sample/photo provenance for each point."""
-    samples = Sample.objects.filter(lot=lot, is_void=False).prefetch_related('photos').order_by('sampled_at')
+    samples = Sample.objects.filter(lot=lot, is_void=False, purpose=Sample.Purpose.ROUTINE).prefetch_related('photos').order_by('sampled_at')
     points = []
     sources = []
     for s in samples:
@@ -57,7 +57,7 @@ def lot_points(lot, up_to=None):
 
 
 def lot_decay_samples(lot, up_to=None):
-    qs = Sample.objects.filter(lot=lot, is_void=False).order_by('-sampled_at')
+    qs = Sample.objects.filter(lot=lot, is_void=False, purpose=Sample.Purpose.ROUTINE).order_by('-sampled_at')
     out = []
     for s in qs:
         if up_to is not None and s.sampled_on > up_to:

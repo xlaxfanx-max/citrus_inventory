@@ -1,5 +1,6 @@
 from .models import plant_for
 from .roles import is_admin, is_foreman, is_gm
+from django.conf import settings
 
 
 def roles(request):
@@ -11,4 +12,5 @@ def roles(request):
         'is_gm': is_gm(user),
         'is_admin': is_admin(user),
         'user_plant': plant_for(user),
+        'demo_mode': settings.DEMO_MODE,
     }

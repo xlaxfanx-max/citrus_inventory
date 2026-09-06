@@ -106,9 +106,12 @@ def parse_int(value, field, default=None):
             return default
         raise RowError(f'missing {field}')
     try:
-        n = int(float(value))
-    except ValueError:
+        number = Decimal(value)
+    except InvalidOperation:
         raise RowError(f'{field}: not a number {value!r}')
+    if not number.is_finite() or number != number.to_integral_value():
+        raise RowError(f'{field}: expected a finite whole number, got {value!r}')
+    n = int(number)
     if n < 0:
         raise RowError(f'{field}: negative value {n}')
     return n

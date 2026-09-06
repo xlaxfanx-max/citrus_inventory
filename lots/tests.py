@@ -92,21 +92,25 @@ class ReceivingImportTests(Base):
         self.assertEqual((ok, errors), (3, []))
         self.assertEqual(Lot.objects.count(), 3)
         self.assertEqual(LotRoomMove.objects.count(), 3)  # no extra moves
-        updated = RECEIVING.replace('B17,Lisbon,2026-08-11,DG,120,Cold 1', 'B17,Lisbon,2026-08-11,DG,125,Cold 3')
+        updated = RECEIVING.replace('B17,Lisbon,2026-08-11,DG,120,Cold 1', 'B17,Lisbon,2026-08-11,DG,125,Cold 1')
         receiving.run(csv_rows(updated))
         lot = Lot.objects.get(plant=self.sla1, lot_no='26-1001')
         self.assertEqual(lot.bins_received, 125)
-        self.assertEqual(lot.current_room.name, 'Cold 3')
-        self.assertEqual(lot.room_moves.count(), 2)
+        self.assertEqual(lot.current_room.name, 'Cold 1')
+        self.assertEqual(lot.room_moves.count(), 1)
 
     def test_reimport_returning_to_earlier_room_does_not_abort(self):
         header = 'plant_code,lot_no,grower_no,grower_name,block,variety,receive_date,receiving_color,bins_received,room\n'
         for room in ('Cold 1', 'Cold 2', 'Cold 1'):
             ok, errors = receiving.run(csv_rows(header + f'SLA1,26-1001,10417,Sespe,,Lisbon,2026-08-11,DG,120,{room}'))
-            self.assertEqual((ok, errors), (1, []), room)
+            if room == 'Cold 2':
+                self.assertEqual(ok, 0)
+                self.assertIn('actual room move', errors[0]['error'])
+            else:
+                self.assertEqual((ok, errors), (1, []), room)
         lot = Lot.objects.get(plant=self.sla1, lot_no='26-1001')
         self.assertEqual(lot.current_room.name, 'Cold 1')
-        self.assertEqual(lot.room_moves.count(), 2)
+        self.assertEqual(lot.room_moves.count(), 1)
 
     def test_packed_lot_is_not_reopened(self):
         receiving.run(csv_rows(RECEIVING))
@@ -144,7 +148,7 @@ class ReceivingImportTests(Base):
         self.assertLess(elapsed, 60)
         # and the re-import that updates every row
         start = time.perf_counter()
-        ok, errors = receiving.run(csv_rows(text.replace(',Cold 1', ',Cold 9')))
+        ok, errors = receiving.run(csv_rows(text.replace(',Lisbon,', ',Eureka,')))
         self.assertLess(time.perf_counter() - start, 60)
         self.assertEqual(ok, 2000)
 
@@ -219,6 +223,15 @@ class PackoutImportTests(Base):
 
 
 class RoomMovesImportTests(Base):
+    def test_timestamped_round_trip_in_one_day_is_idempotent(self):
+        receiving.run(csv_rows(RECEIVING))
+        rows = csv_rows('plant_code,lot_no,room,moved_at\nSLA1,26-1001,Cold 1,2026-08-20T18:00:00-07:00\nSLA1,26-1001,Cold 2,2026-08-20 12:00\nSLA1,26-1001,Cold 1,2026-08-20 08:00')
+        self.assertEqual(room_moves.run(rows), (3, []))
+        self.assertEqual(room_moves.run(rows), (3, []))
+        lot = Lot.objects.get(plant=self.sla1, lot_no='26-1001')
+        self.assertEqual(lot.current_room.name, 'Cold 1')
+        self.assertEqual(lot.room_moves.filter(occurred_at__isnull=False).count(), 3)
+
     def test_moves_update_current_room(self):
         lot = self.make_lot('26-1001', receive_date=date(2026, 8, 10))
         rows = csv_rows("plant_code,lot_no,room,moved_at\nSLA1,26-1001,Cold 2,2026-08-20\nSLA1,26-1001,Cold 1,2026-08-15")
@@ -302,6 +315,13 @@ class PredictionDataImportTests(Base):
 
 
 class RunImportTests(Base):
+    def test_integer_imports_reject_fractional_and_nonfinite_values(self):
+        from .importers.base import parse_int, RowError
+        for value in ('1.5', 'NaN', 'Infinity', '-3'):
+            with self.subTest(value=value), self.assertRaises(RowError):
+                parse_int(value, 'bins_received')
+        self.assertEqual(parse_int('1,200.0', 'bins_received'), 1200)
+
     def test_run_import_records_batch(self):
         user = make_user('gm', 'gm')
         batch = run_import(ImportBatch.Kind.RECEIVING, io.BytesIO(RECEIVING.strip().encode()), user=user, original_name='rcv.csv')
@@ -432,17 +452,18 @@ class ViewAccessTests(Base):
             decay_rate=.12,
             decay_flag=True,
             confidence='med',
-            model_version='test',
+            model_version='v1.1-linear-cci',
+            inputs={'points': [[(date.today()-urgent.receive_date).days-7, 0.3], [(date.today()-urgent.receive_date).days, 1.0]]},
         )
         self.client.force_login(self.gm)
         resp = self.client.get(reverse('lots:board'), {'plant': 'SLA1', 'attention': 'due'})
         self.assertContains(resp, urgent.lot_no)
         self.assertNotContains(resp, later.lot_no)
-        self.assertContains(resp, 'Decay risk')
+        self.assertContains(resp, 'Inspect observed decay')
         resp = self.client.get(reverse('lots:board'), {'plant': 'SLA1', 'attention': 'decay'})
         self.assertContains(resp, urgent.lot_no)
         self.assertNotContains(resp, later.lot_no)
-        self.assertContains(resp, '12.0% decay')
+        self.assertContains(resp, '12.0% observed decay')
 
     def test_imports_need_gm(self):
         self.client.force_login(self.foreman)

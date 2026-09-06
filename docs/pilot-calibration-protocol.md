@@ -25,7 +25,7 @@ Record the actual selection method and number of bins represented in the capture
 - Retake failed or low-quality photos during the same visit using the post-capture status screen.
 - Import raw room temperature/humidity readings and actual room-move timestamps; add gas measurements where sensors exist.
 - Import harvest dates and every lot-level treatment event instead of reconstructing either later.
-- Record every partial packout with `bins_packed` and `is_final=no`.
+- Import one aggregate packout row per lot per day with `bins_packed` and `is_final=no` while stock remains. Combine multiple same-day runs in the source extract; a later upload of that lot/date updates the aggregate rather than adding another run.
 - On the final run, use `is_final=yes` and record direct packout color, decay, softness, shrivel, chilling injury, specification result and a structured downgrade reason where known.
 - Maintain representative shelf-life holdouts past the commercial pack date and record the first assessment that fails the written specification.
 - Record plant weekly capacity in Settings so the board exposes overload weeks.

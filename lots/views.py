@@ -123,7 +123,7 @@ def lot_detail(request, pk):
     latest = predictions[0] if predictions else None
     points = [
         {'sample': s, 'day': (s.sampled_on - lot.receive_date).days, 'cci': s.mean_cci}
-        for s in samples if s.mean_cci is not None
+        for s in samples if s.mean_cci is not None and s.purpose == Sample.Purpose.ROUTINE
     ]
     chart = cci_chart_svg(lot, points, latest, settings, today=timezone.localdate())
     photos = [p for s in samples for p in s.photos.all()]

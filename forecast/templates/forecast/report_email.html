@@ -2,6 +2,8 @@
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ plant.code }} lemon storage report {{ today }}</title></head>
 <body style="margin:0;padding:16px;background:#f6f7f4;font:15px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;color:#22301f">
 <div style="max-width:720px;margin:0 auto;background:#fff;border:1px solid #e2e6dd;border-radius:10px;padding:20px">
+  <p style="padding:10px;background:#fff2d9">{% if demo_mode %}<strong>Demonstration mode.</strong> {% endif %}Color-based planning estimates require manager review. Remaining marketable life has not been validated. Trend support is not a probability of correctness.</p>
+  {% if data_checks %}<h2 style="font-size:16px">Evidence needed · {{ data_checks|length }} lots</h2><ul>{% for lot, reason in data_checks %}<li><strong>{{ lot.lot_no }}</strong> {{ reason }}</li>{% endfor %}</ul>{% endif %}
   {% if not standalone %}<p style="font-size:13px"><a href="{{ board_url }}" style="color:#3a6b35">← Board</a> · preview of the email that goes out Monday 05:30</p>{% endif %}
   <h1 style="font-size:20px;margin:0 0 4px">🍋 {{ plant.code }} {{ plant.name }} · week of {{ today|date:'M j, Y' }}</h1>
   <p style="margin:0 0 16px;color:#6b7566">{{ n_lots }} lots in storage · <a href="{{ board_url }}" style="color:#3a6b35">open the plant board</a></p>
@@ -15,8 +17,8 @@
     {% for pack_by, lot, pred, sample in to_pack %}
     <tr style="border-top:1px solid #e2e6dd"><td style="padding:6px;font-weight:700;color:{% if pack_by < today %}#a13c2a{% else %}#22301f{% endif %}">{{ pack_by|date:'D M j' }}{% if pack_by < today %} (overdue){% endif %}</td>
       <td style="padding:6px"><a href="{{ board_url }}" style="color:#3a6b35">{{ lot.lot_no }}</a></td><td style="padding:6px">{{ lot.grower.name }}</td><td style="padding:6px">{{ lot.current_room|default:'—' }}</td><td style="padding:6px">{{ lot.weeks_in_storage }}</td>
-      <td style="padding:6px">{{ pred.get_stage_display }} · {{ pred.cci_now|floatformat:1 }} ({{ pred.confidence }})</td>
-      <td style="padding:6px">{% if sample %}{{ sample.foreman_color }} · {{ sample.foreman_pack_within_weeks }} wk{% else %}—{% endif %}</td></tr>
+      <td style="padding:6px">{{ pred.get_stage_display }} · {{ pred.cci_now|floatformat:1 }} ({{ pred.support_label }})</td>
+      <td style="padding:6px">{% if sample %}{{ sample.foreman_color }} · {{ sample.foreman_pack_label }}{% else %}—{% endif %}</td></tr>
     {% endfor %}
   </table>
   {% else %}<p style="color:#6b7566">Nothing due this week.</p>{% endif %}

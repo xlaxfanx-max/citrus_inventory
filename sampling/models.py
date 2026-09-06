@@ -8,14 +8,64 @@ is judged against. They are never model inputs and the admin refuses to edit
 them after the fact.
 """
 
+from datetime import timezone as datetime_timezone
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
+import math
 
 from lots.models import Color, Lot
+
+
+class BoardCalibration(models.Model):
+    """Instrument-measured references for one station setup; versions are immutable."""
+
+    plant = models.ForeignKey('lots.Plant', on_delete=models.PROTECT)
+    board_id = models.CharField(max_length=80)
+    phone_id = models.CharField(max_length=80)
+    light_id = models.CharField(max_length=80)
+    measured_at = models.DateTimeField()
+    instrument = models.CharField(max_length=200, help_text='Instrument, illuminant and measurement record identifier.')
+    reference_rgb = models.JSONField(help_text='All nine patch names mapped to measured D65 sRGB values [R,G,B], each 0–255. Never enter nominal print targets as measurements.')
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-measured_at', '-pk']
+
+    def __str__(self):
+        return f'{self.board_id} / {self.phone_id} / {self.measured_at:%Y-%m-%d}'
+
+    def clean(self):
+        from .board import patches
+        expected = {p['name'] for p in patches()}
+        valid = isinstance(self.reference_rgb, dict) and set(self.reference_rgb) == expected
+        if valid:
+            valid = all(isinstance(rgb, list) and len(rgb) == 3 and all(
+                isinstance(v, (float, int)) and not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 255
+                for v in rgb
+            ) for rgb in self.reference_rgb.values())
+        if not valid:
+            raise ValidationError({'reference_rgb': 'Provide measured RGB triples for exactly the nine board patches.'})
+        if self.measured_at and self.measured_at > timezone.now():
+            raise ValidationError({'measured_at': 'A measurement cannot be in the future.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        if self.pk:
+            old = type(self).objects.get(pk=self.pk)
+            if old.snapshot() != self.snapshot():
+                raise ValidationError('Calibration records are immutable. Create a new measured version and retire the old one.')
+        super().save(*args, **kwargs)
+
+    def snapshot(self):
+        return {'calibration_id': self.pk, 'plant_id': self.plant_id, 'board_id': self.board_id,
+                'phone_id': self.phone_id, 'light_id': self.light_id,
+                'measured_at': self.measured_at.astimezone(datetime_timezone.utc).isoformat(), 'instrument': self.instrument,
+                'reference_rgb': self.reference_rgb}
 
 
 class Sample(models.Model):
@@ -49,7 +99,7 @@ class Sample(models.Model):
     )
     foreman_color = models.CharField(max_length=2, choices=Color.choices)
     foreman_pack_within_weeks = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(8)]
+        validators=[MinValueValidator(0), MaxValueValidator(8)]
     )
     decay_count = models.PositiveSmallIntegerField(default=0)
     fruit_count = models.PositiveSmallIntegerField(default=10)
@@ -168,6 +218,10 @@ class Sample(models.Model):
         return self.sampled_on + timezone.timedelta(weeks=self.foreman_pack_within_weeks)
 
     @property
+    def foreman_pack_label(self):
+        return 'Today' if self.foreman_pack_within_weeks == 0 else f'Within {self.foreman_pack_within_weeks} wk'
+
+    @property
     def decay_pct(self):
         return 100 * self.decay_count / self.fruit_count if self.fruit_count else None
 
@@ -241,6 +295,7 @@ class SamplePhoto(models.Model):
 
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name='photos')
     image = models.FileField(upload_to=photo_upload_path)
+    calibration_snapshot = models.JSONField(default=dict, blank=True, help_text='Station and measured references copied at capture; retained when rescoring.')
     thumb = models.FileField(upload_to='thumbs/%Y/%m/', blank=True, help_text='Small JPEG made by the scoring job for the board.')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
@@ -286,6 +341,8 @@ class SamplePhoto(models.Model):
     def mark_scored(self, result, version):
         correction = result.get('correction') or {}
         warnings = []
+        if not self.calibration_snapshot:
+            warnings.append('No instrument-measured station calibration; exploratory color measurement only.')
         if not correction.get('applied'):
             warnings.append('color correction was not reliable; excluded from forecasting')
         if result['fruit_detected'] < 10:
@@ -304,6 +361,7 @@ class SamplePhoto(models.Model):
         self.std_cci = result['std_cci']
         self.pipeline_version = version
         self.scoring_metadata = {
+            'calibration': self.calibration_snapshot or {'status': 'nominal_print_targets'},
             'markers': result.get('markers', []),
             'correction': correction,
             'blob_centers': result.get('blob_centers', []),

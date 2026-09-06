@@ -9,6 +9,7 @@ recommended, when, on what numbers, and what the GM did about it.
 """
 
 from django.conf import settings
+from datetime import date
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import OuterRef, Subquery
@@ -76,6 +77,29 @@ class Prediction(models.Model):
     def decay_pct(self):
         return round(self.decay_rate * 100, 1)
 
+    def review_blockers(self, today, model_settings):
+        """Evidence checks shared by the board, published plans and emails."""
+        from .model import MODEL_VERSION
+
+        reasons = []
+        points = self.inputs.get('points', [])
+        if self.model_version != MODEL_VERSION:
+            reasons.append('Rebuild forecast with the current model.')
+        if self.as_of_date > today or (today - self.as_of_date).days > 1:
+            reasons.append('Forecast needs a refresh.')
+        if len({p[0] for p in points}) < 2:
+            reasons.append('Collect usable routine photos on at least two separate days.')
+        if points:
+            received = date.fromisoformat(self.inputs['receive_date']) if self.inputs.get('receive_date') else self.lot.receive_date
+            age = (today - received).days - max(p[0] for p in points)
+            if age < 0 or age >= model_settings.sample_overdue_days:
+                reasons.append('Usable routine measurements are out of date; resample.')
+        return reasons
+
+    @property
+    def support_label(self):
+        return {'high': 'Strong trend fit', 'med': 'Limited trend fit', 'low': 'Low trend support'}[self.confidence]
+
 
 class ReportDelivery(models.Model):
     class Status(models.TextChoices):
@@ -110,7 +134,7 @@ class PlanAction(models.TextChoices):
     """The next action the ranked plan asks for on a lot. Codes are stable;
     lots.planning decides which one applies and in what order."""
 
-    DECAY_RISK = 'decay_risk', 'Decay risk'
+    DECAY_RISK = 'decay_risk', 'Inspect observed decay'
     PACK_OVERDUE = 'pack_overdue', 'Pack overdue'
     PACK_THIS_WEEK = 'pack_this_week', 'Pack this week'
     RETAKE_PHOTO = 'retake_photo', 'Retake photo'
@@ -119,6 +143,7 @@ class PlanAction(models.TextChoices):
     SCORING = 'scoring', 'Scoring'
     NEEDS_BASELINE = 'needs_baseline', 'Needs baseline'
     MONITOR = 'monitor', 'Monitor'
+    REFRESH_FORECAST = 'refresh_forecast', 'Refresh forecast'
 
 
 class PackPlan(models.Model):
@@ -191,6 +216,7 @@ class PlanRecommendation(models.Model):
     bins_remaining = models.DecimalField(max_digits=9, decimal_places=1, null=True, blank=True)
     room_name = models.CharField(max_length=50, blank=True)
     days_in_storage = models.PositiveIntegerField(default=0)
+    evidence_notes = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ['plan', 'rank']
@@ -198,6 +224,10 @@ class PlanRecommendation(models.Model):
 
     def __str__(self):
         return f'{self.plan}: #{self.rank} {self.lot.lot_no} {self.get_action_display()}'
+
+    @property
+    def support_label(self):
+        return {'high': 'Strong trend fit', 'med': 'Limited trend fit', 'low': 'Low trend support'}.get(self.confidence, 'No trend')
 
     @property
     def latest_decision(self):

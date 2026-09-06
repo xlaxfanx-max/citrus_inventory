@@ -1,7 +1,19 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import Sample, SamplePhoto
+from .models import BoardCalibration, Sample, SamplePhoto
+
+
+@admin.register(BoardCalibration)
+class BoardCalibrationAdmin(admin.ModelAdmin):
+    list_display = ['board_id', 'plant', 'phone_id', 'light_id', 'measured_at', 'active']
+    list_filter = ['plant', 'active']
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields if f.name != 'active'] if obj else []
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class SamplePhotoInline(admin.TabularInline):
@@ -56,7 +68,7 @@ class SamplePhotoAdmin(admin.ModelAdmin):
     list_filter = ['status', 'card_detected']
     search_fields = ['sample__lot__lot_no']
     readonly_fields = [
-        'processed_at', 'per_fruit_lab', 'per_fruit_cci', 'pipeline_version',
+        'processed_at', 'per_fruit_lab', 'per_fruit_cci', 'pipeline_version', 'calibration_snapshot',
         'scoring_metadata', 'quality_ok', 'quality_warnings', 'attempt_count',
         'processing_started_at',
     ]

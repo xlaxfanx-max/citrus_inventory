@@ -41,6 +41,8 @@ def group_required(*names):
         def wrapped(request, *args, **kwargs):
             if not in_groups(request.user, *names):
                 raise PermissionDenied
+            if not is_gm(request.user) and plant_for(request.user) is None:
+                raise PermissionDenied('A plant assignment is required for this account.')
             return view(request, *args, **kwargs)
 
         return wrapped

@@ -127,7 +127,8 @@
       <a href="{% url 'forecast:plan_list' %}" class="{% if request.resolver_match.url_name|slice:':5' == 'plan_' %}active{% endif %}">Decisions</a>
       {% if is_foreman %}<a href="{% url 'sampling:picker' %}" class="{% if request.resolver_match.app_name == 'sampling' %}active{% endif %}">Samples</a>{% endif %}
       {% if is_gm %}<a href="{% url 'lots:imports' %}" class="{% if 'import' in request.resolver_match.url_name %}active{% endif %}">Imports</a>
-      <a href="{% url 'forecast:accuracy' %}" class="{% if request.resolver_match.url_name == 'accuracy' %}active{% endif %}">Validation</a>{% endif %}
+      <a href="{% url 'forecast:accuracy' %}" class="{% if request.resolver_match.url_name == 'accuracy' %}active{% endif %}">Validation</a>
+      <a href="{% url 'forecast:readiness' %}" class="{% if request.resolver_match.url_name == 'readiness' %}active{% endif %}">Readiness</a>{% endif %}
       {% if is_admin %}<a href="{% url 'lots:settings' %}" class="{% if request.resolver_match.url_name == 'settings' %}active{% endif %}">Settings</a>{% endif %}
       {% if user.is_staff %}<a href="/admin/">Admin</a>{% endif %}
       <form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button type="submit" title="{{ user.username }}">Log out</button></form>
@@ -135,6 +136,7 @@
   </nav>
 </header>
 <main>
+  {% if user.is_authenticated %}<p class="flag amber" style="display:block">{% if demo_mode %}<strong>Demonstration mode.</strong> Example records do not establish field accuracy. {% endif %}Color-based planning estimates require manager review. Remaining marketable life has not been validated.</p>{% endif %}
   {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
   {% block content %}{% endblock %}
 </main>

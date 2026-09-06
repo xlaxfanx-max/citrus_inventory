@@ -15,6 +15,15 @@ from .forms import PlanDecisionForm
 from .models import PackPlan, PlanRecommendation, Prediction
 from .plans import coverage as plan_coverage, plans_for, publish_plan, scorecard
 from .report import build_report
+from .readiness import readiness_for
+
+
+@group_required(GM, ADMIN)
+def readiness(request):
+    plant, plants = resolve_plant(request)
+    return render(request, 'forecast/readiness.html', {
+        'plant': plant, 'plants': plants, **readiness_for(plant),
+    })
 
 
 def accuracy_rows(lots):
@@ -81,7 +90,7 @@ def accuracy(request):
                 'predictions',
                 queryset=Prediction.objects.latest_per_lot(on_or_before=OuterRef('lot__packed_date')),
             ),
-            Prefetch('samples', queryset=Sample.objects.filter(is_void=False).order_by('-sampled_at', '-id')),
+            Prefetch('samples', queryset=Sample.objects.filter(is_void=False, purpose=Sample.Purpose.ROUTINE).order_by('-sampled_at', '-id')),
         )
         .order_by('-packed_date')
     )

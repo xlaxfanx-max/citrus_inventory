@@ -21,7 +21,7 @@ from . import board
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 'v1-aruco-cci-2026.09'
+PIPELINE_VERSION = 'v1.1-aruco-cci-2026.09'
 
 MAX_DETECT_SIDE = 2400        # downscale huge phone photos before detection
 MIN_MARKERS = 3               # homography from 3 markers is plenty; 4 is better
@@ -108,7 +108,7 @@ def _patch_mean_linear_rgb(canvas_lin_rgb, rect):
     return region.reshape(-1, 3).mean(axis=0)
 
 
-def color_correct(canvas_bgr):
+def color_correct(canvas_bgr, reference_rgb=None):
     """Fit a 3x3 linear map from measured to reference color on the nine
     patches and apply it to the whole canvas. The fit is done in linear light
     (sRGB de-gammaed), where a camera's white-balance error really is a
@@ -118,7 +118,8 @@ def color_correct(canvas_bgr):
     measured, reference = [], []
     for p in board.patches():
         measured.append(_patch_mean_linear_rgb(lin, p['rect']))
-        reference.append(_srgb_to_linear(np.array(p['ref_rgb'], dtype=np.float64) / 255.0))
+        rgb = reference_rgb[p['name']] if reference_rgb else p['ref_rgb']
+        reference.append(_srgb_to_linear(np.array(rgb, dtype=np.float64) / 255.0))
     M = np.array(measured)
     R = np.array(reference)
     A, _, rank, sv = np.linalg.lstsq(M, R, rcond=None)
@@ -201,13 +202,13 @@ def make_thumbnail(data, size=THUMB_SIZE):
     return out.getvalue()
 
 
-def score_image(data, min_fruit=6):
+def score_image(data, min_fruit=6, reference_rgb=None):
     """Run the full pipeline on encoded image bytes. Returns the result dict
     or raises ScoringError with whatever was measured before failing."""
     img = decode_image(data)
     H, markers = detect_board(img)
     canvas = warp_to_canvas(img, H)
-    corrected, correction = color_correct(canvas)
+    corrected, correction = color_correct(canvas, reference_rgb=reference_rgb)
     blobs = segment_fruit(corrected)
     if len(blobs) < min_fruit:
         raise ScoringError(
@@ -261,7 +262,8 @@ def score_photo(photo, settings=None, rebuild=True):
         logger.warning('thumbnail failed for photo %s: %s', photo.pk, e)
 
     try:
-        result = score_image(data, min_fruit=settings.min_fruit_for_score)
+        result = score_image(data, min_fruit=settings.min_fruit_for_score,
+            reference_rgb=photo.calibration_snapshot.get('reference_rgb'))
     except ScoringError as e:
         photo.mark_failed(
             str(e),
@@ -286,7 +288,8 @@ def score_photo(photo, settings=None, rebuild=True):
     else:
         photo.mark_scored(result, PIPELINE_VERSION)
 
-    if rebuild and photo.status == SamplePhoto.Status.SCORED and photo.quality_ok:
+    if (rebuild and photo.status == SamplePhoto.Status.SCORED and photo.quality_ok
+            and photo.sample.purpose == 'routine' and photo.sample.lot.status == 'in_storage'):
         from forecast.services import rebuild_for_lot
 
         rebuild_for_lot(photo.sample.lot, settings=settings)

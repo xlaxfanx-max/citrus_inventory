@@ -16,6 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from lots.models import Lot, ModelSettings
+from lots.planning import board_rows, plan_lots
 from sampling.models import Sample
 
 from .models import PackPlan, Prediction, ReportDelivery
@@ -32,7 +33,7 @@ def latest_predictions(lots, on_or_before):
 
 def latest_samples(lots):
     out = {}
-    for s in Sample.objects.filter(lot__in=lots, is_void=False).order_by('lot_id', '-sampled_at', '-id'):
+    for s in Sample.objects.filter(lot__in=lots, is_void=False, purpose=Sample.Purpose.ROUTINE).order_by('lot_id', '-sampled_at', '-id'):
         out.setdefault(s.lot_id, s)
     return out
 
@@ -49,17 +50,19 @@ def build_report(plant, today=None, settings=None, plan=None):
     now_preds = latest_predictions(lots, today)
     prev_preds = latest_predictions(lots, week_ago)
     samples = latest_samples(lots)
+    ranked = {row['lot'].pk: row for row in board_rows(plan_lots(plant, today), today, settings)}
+    data_checks = [(row['lot'], ' '.join(row['evidence_notes'])) for row in ranked.values() if row['evidence_notes']]
 
     to_pack, new_decay, moved_up, unsampled, import_gaps = [], [], [], [], []
     for lot in lots:
         pred = now_preds.get(lot.id)
         prev = prev_preds.get(lot.id)
         sample = samples.get(lot.id)
-        if pred and pred.pack_by_date and (pred.pack_by_date - today).days <= 7:
+        if pred and ranked[lot.pk]['dates_usable'] and pred.pack_by_date and (pred.pack_by_date - today).days <= 7:
             to_pack.append((pred.pack_by_date, lot, pred, sample))
         if pred and pred.decay_flag and not (prev and prev.decay_flag):
             new_decay.append((lot, pred, sample))
-        if pred and prev and pred.pack_by_date and prev.pack_by_date:
+        if pred and ranked[lot.pk]['dates_usable'] and prev and pred.pack_by_date and prev.pack_by_date:
             shift = (prev.pack_by_date - pred.pack_by_date).days
             if shift > 7:
                 moved_up.append((shift, lot, pred, prev))
@@ -80,6 +83,7 @@ def build_report(plant, today=None, settings=None, plan=None):
     )
     return {
         'plant': plant,
+        'demo_mode': django_settings.DEMO_MODE,
         'today': today,
         'week_ago': week_ago,
         'board_url': f'{django_settings.SITE_URL}{reverse("lots:board")}?plant={plant.code}',
@@ -95,6 +99,7 @@ def build_report(plant, today=None, settings=None, plan=None):
         'moved_up': moved_up,
         'unsampled': unsampled,
         'import_gaps': import_gaps,
+        'data_checks': data_checks,
         'overdue_days': settings.sample_overdue_days,
         'import_gap_days': settings.import_gap_days,
     }

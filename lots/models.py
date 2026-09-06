@@ -6,6 +6,7 @@ leaves the board by changing status to packed or dumped.
 """
 
 from decimal import Decimal
+from datetime import datetime, time
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -236,6 +237,7 @@ class LotRoomMove(models.Model):
     lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='room_moves')
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name='moves_in')
     moved_at = models.DateField()
+    occurred_at = models.DateTimeField(null=True, blank=True, help_text='Actual move timestamp when known. Blank means only the date is known.')
     moved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -243,9 +245,8 @@ class LotRoomMove(models.Model):
     class Meta:
         ordering = ['-moved_at', '-id']
         constraints = [
-            models.UniqueConstraint(
-                fields=['lot', 'room', 'moved_at'], name='unique_room_move_per_lot_day'
-            )
+            models.UniqueConstraint(fields=['lot', 'room', 'occurred_at'], name='unique_room_move_timestamp'),
+            models.UniqueConstraint(fields=['lot', 'room', 'moved_at'], condition=Q(occurred_at__isnull=True), name='unique_date_only_room_move'),
         ]
 
     def __str__(self):
@@ -257,6 +258,8 @@ class LotRoomMove(models.Model):
 
     def clean(self):
         errors = {}
+        if self.occurred_at and timezone.localtime(self.occurred_at).date() != self.moved_at:
+            errors['occurred_at'] = 'Timestamp and move date must refer to the same local day.'
         if self.lot_id and self.room_id and self.lot.plant_id != self.room.plant_id:
             errors['room'] = 'The room must belong to the lot\'s plant.'
         if self.lot_id and self.moved_at and self.moved_at < self.lot.receive_date:
@@ -265,6 +268,10 @@ class LotRoomMove(models.Model):
             errors['moved_at'] = 'A room move cannot occur after final packout.'
         if errors:
             raise ValidationError(errors)
+
+    @property
+    def effective_at(self):
+        return self.occurred_at or timezone.make_aware(datetime.combine(self.moved_at, time.min))
 
 
 class ImportBatch(models.Model):

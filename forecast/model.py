@@ -9,13 +9,14 @@ spec leaves open, resolved here:
 * A fitted slope at or below MIN_SLOPE (flat or greening) cannot cross the
   yellow threshold. We fall back to the prior drift for the receiving color,
   anchored at the latest observed CCI, and mark confidence low.
-* If the line takes longer than settings.max_horizon_days to reach yellow,
-  the yellow date is capped at that horizon and the inputs say so.
+* Threshold dates are anchored to receipt/observations, including crossings
+  in the past. Passing time alone must never move a deadline forward.
+* Forecasts beyond the horizon have no date. Old observations lower support.
 """
 
 from datetime import timedelta
 
-MODEL_VERSION = 'v1-linear-cci'
+MODEL_VERSION = 'v1.1-linear-cci'
 MIN_SLOPE = 0.005          # CCI per day; below this the line is treated as flat
 MAX_FIT_POINTS = 5
 HIGH_CONF_MIN_POINTS = 4
@@ -58,7 +59,13 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
     day_now = (as_of - receive_date).days
     yellow = settings.yellow_threshold
     prior = settings.prior_drift(receiving_color)
-    pts = sorted(points)
+    # One independent visit-day per point. Extra photos/visits on the same day
+    # must not increase support or overweight that day in the regression.
+    by_day = {}
+    for day, cci in points:
+        if 0 <= day <= day_now:
+            by_day.setdefault(day, []).append(cci)
+    pts = sorted((day, sum(values) / len(values)) for day, values in by_day.items())
     notes = []
 
     if len(pts) >= 2:
@@ -93,20 +100,31 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
         fit = None
         notes.append('no scored samples yet; start CCI assumed from receiving color')
 
-    horizon_exceeded = False
-    if cci_now >= yellow:
-        days_to_yellow = 0
-        notes.append('already at or past yellow threshold')
+    last_sample_age = day_now - pts[-1][0] if pts else None
+    stale = last_sample_age is not None and last_sample_age >= settings.sample_overdue_days
+    if stale:
+        confidence = 'low'
+        notes.append(f'latest usable observation is {last_sample_age} days old; resample before acting')
+    # Compute a fixed crossing relative to receipt, rather than setting it to
+    # today once yellow. For priors, use the same fixed observation anchor.
+    if method == 'ols':
+        crossing_day = (yellow - intercept) / drift
+    elif drift > 0:
+        anchor_day, anchor_cci = pts[-1] if pts else (0, settings.start_cci(receiving_color))
+        crossing_day = anchor_day + (yellow - anchor_cci) / drift
     else:
-        days_to_yellow = (yellow - cci_now) / drift if drift > 0 else float('inf')
-        if days_to_yellow > settings.max_horizon_days:
-            notes.append(f'yellow is beyond the {settings.max_horizon_days}-day forecast horizon')
-            horizon_exceeded = True
+        crossing_day = float('inf')
+    crossing_day = max(0, crossing_day)
+    horizon_exceeded = crossing_day - day_now > settings.max_horizon_days
+    if cci_now >= yellow:
+        notes.append('at or past yellow threshold; crossing estimate is retained')
+    if horizon_exceeded:
+        notes.append(f'yellow is beyond the {settings.max_horizon_days}-day forecast horizon')
     if horizon_exceeded:
         predicted_yellow = None
         pack_by = None
     else:
-        predicted_yellow = as_of + timedelta(days=int(round(days_to_yellow)))
+        predicted_yellow = receive_date + timedelta(days=int(round(crossing_day)))
         pack_by = predicted_yellow - timedelta(days=settings.buffer_days)
 
     decay_rate, decay_flag = decay_summary(decay_samples, settings.decay_flag_pct)
@@ -137,6 +155,10 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
             'decay_samples': [[d, f] for d, f in list(decay_samples)[-2:]],
             'decay_flag_pct': settings.decay_flag_pct,
             'horizon_exceeded': horizon_exceeded,
+            'last_usable_sample_age_days': last_sample_age,
+            'sample_stale': stale,
+            'sample_overdue_days': settings.sample_overdue_days,
+            'support_definition': 'Heuristic trend support, not a calibrated probability of quality or shelf life.',
             'notes': notes,
         },
     }

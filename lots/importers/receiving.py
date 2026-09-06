@@ -153,6 +153,8 @@ def run(rows, batch=None):
                 moves.append((lot, room, d['receive_date']))
         else:
             immutable_changes = []
+            if room is not None and lot.current_room_id is not None and lot.current_room_id != room.id and lot.status == Lot.Status.IN_STORAGE:
+                immutable_changes.append('Room differs from the recorded location; import the actual room move before re-importing receiving.')
             if lot.pk in observed_ids and lot.receive_date != d['receive_date']:
                 immutable_changes.append(
                     f'receive_date is locked at {lot.receive_date} after sampling/prediction'
@@ -182,7 +184,7 @@ def run(rows, batch=None):
             if d['receiving_color'] and lot.receiving_color != d['receiving_color']:
                 lot.receiving_color = d['receiving_color']
                 changed = True
-            if room is not None and lot.current_room_id != room.id and lot.status == Lot.Status.IN_STORAGE:
+            if room is not None and lot.current_room_id is None and lot.status == Lot.Status.IN_STORAGE:
                 lot.current_room = room
                 moves.append((lot, room, d['receive_date']))
                 changed = True
@@ -197,7 +199,7 @@ def run(rows, batch=None):
                 'grower', 'block', 'variety', 'receive_date', 'receiving_color',
                 'bins_received', 'current_room', 'harvest_date', 'intake_cci_mean',
                 'intake_cci_std',
-            ]
+            ], batch_size=40
         )
     if moves:
         # bulk_create above assigned pks on the new lots (SQLite/Postgres both return ids).

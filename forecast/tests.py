@@ -25,6 +25,23 @@ TODAY = date(2026, 10, 5)
 
 
 class ModelTests(TestCase):
+    def test_passing_time_does_not_move_yellow_crossing(self):
+        settings = ModelSettings.get()
+        received = TODAY - timedelta(days=30)
+        results = [predict(as_of=TODAY + timedelta(days=offset), receive_date=received,
+            receiving_color='LG', points=[(0, -1), (10, 1), (20, 3), (30, 5)],
+            decay_samples=[], settings=settings) for offset in (0, 7, 14)]
+        self.assertEqual({r['predicted_yellow_date'] for r in results}, {received + timedelta(days=15)})
+        self.assertEqual(len({r['pack_by_date'] for r in results}), 1)
+        self.assertEqual(results[-1]['confidence'], 'low')
+
+    def test_duplicate_day_and_future_visits_cannot_inflate_support(self):
+        s = ModelSettings.get()
+        result = predict(as_of=TODAY, receive_date=TODAY-timedelta(days=10), receiving_color='DG',
+            points=[(0, -8), (0, -8), (10, -6), (10, -6), (20, 4)], decay_samples=[], settings=s)
+        self.assertEqual(result['inputs']['points'], [[0, -8.0], [10, -6.0]])
+        self.assertEqual(result['confidence'], 'med')
+
     def setUp(self):
         self.s = ModelSettings.get()
 
@@ -53,7 +70,7 @@ class ModelTests(TestCase):
         self.assertAlmostEqual(r['cci_now'], -6.0 + 10 * self.s.prior_drift_dg, places=3)
 
     def test_two_points_fit_medium_confidence(self):
-        r = self.go([(10, -9.0), (20, -7.0)], receive_days_ago=30)
+        r = self.go([(10, -9.0), (30, -5.0)], receive_days_ago=30)
         self.assertEqual(r['confidence'], 'med')
         self.assertAlmostEqual(r['drift_per_day'], 0.2)
         self.assertAlmostEqual(r['cci_now'], -5.0)
@@ -77,9 +94,9 @@ class ModelTests(TestCase):
 
     def test_already_yellow(self):
         r = self.go([(10, 1.0), (20, 3.0)], receive_days_ago=20)
-        self.assertEqual(r['predicted_yellow_date'], TODAY)
+        self.assertEqual(r['predicted_yellow_date'], TODAY - timedelta(days=5))
         self.assertEqual(r['stage'], Color.YELLOW)
-        self.assertIn('already at or past yellow threshold', r['inputs']['notes'])
+        self.assertIn('at or past yellow threshold; crossing estimate is retained', r['inputs']['notes'])
 
     def test_horizon_cap(self):
         r = self.go([(0, -30.0), (10, -29.9)], receive_days_ago=10)  # 0.01/day -> ~3000 days
@@ -119,13 +136,70 @@ class Base(TestCase):
 
 
 class ServiceTests(Base):
+    def test_holdout_cannot_change_forecast_or_reset_routine_sampling(self):
+        from lots.planning import board_rows, plan_lots
+        from sampling.views import _picker_rows
+        lot = self.make_lot('HOLDOUT-ISOLATION', 40)
+        self.add_sample(lot, 21, -8)
+        self.add_sample(lot, 14, -7)
+        before = rebuild_for_lot(lot)
+        holdout = self.add_sample(lot, 0, 9, decay=5)
+        holdout.purpose = Sample.Purpose.HOLDOUT
+        holdout.marketability = Sample.Marketability.FAIL
+        holdout.failure_reason = Sample.FailureReason.DECAY
+        holdout.save()
+        after = rebuild_for_lot(lot)
+        self.assertEqual(before.pack_by_date, after.pack_by_date)
+        self.assertEqual(before.inputs['points'], after.inputs['points'])
+        self.assertFalse(after.decay_flag)
+        row = board_rows(plan_lots(self.plant), timezone.localdate(), self.settings)[0]
+        self.assertEqual(row['days_since_sample'], 14)
+        self.assertFalse(row['dates_usable'])
+        self.assertEqual(row['action'].code, PlanAction.SAMPLE_DUE)
+        route, _ = _picker_rows(self.plant)
+        self.assertFalse(route[0]['done_today'])
+
+    def test_stale_dates_are_excluded_from_board_report_plan_and_capacity(self):
+        from lots.planning import board_rows, plan_lots, capacity_projection
+        lot = self.make_lot('STALE-URGENT', 40, bins_received=120)
+        for age, cci in [(35, -2), (28, 0), (21, 2), (14, 4)]:
+            self.add_sample(lot, age, cci)
+        pred = rebuild_for_lot(lot)
+        self.assertEqual(pred.confidence, 'low')
+        rows = board_rows(plan_lots(self.plant), timezone.localdate(), self.settings)
+        self.assertFalse(rows[0]['dates_usable'])
+        self.assertIsNone(rows[0]['days_to_pack_by'])
+        self.assertEqual(sum(b['lots'] for b in capacity_projection(rows, self.plant, timezone.localdate())), 0)
+        self.assertEqual(build_report(self.plant)['to_pack'], [])
+        rec = publish_plan(self.plant).recommendations.get()
+        self.assertFalse(rec.requires_decision)
+        self.assertTrue(rec.evidence_notes)
+
+    def test_same_day_room_moves_use_actual_exposure_and_count_days_once(self):
+        lot = self.make_lot('INTRADAY', 2)
+        cold = Room.objects.create(plant=self.plant, name='Cold')
+        warm = Room.objects.create(plant=self.plant, name='Warm')
+        day = timezone.localdate()
+        at = lambda hour: timezone.make_aware(datetime.combine(day, time(hour)))
+        LotRoomMove.objects.create(lot=lot, room=cold, moved_at=lot.receive_date)
+        LotRoomMove.objects.create(lot=lot, room=warm, moved_at=day, occurred_at=at(12))
+        LotRoomMove.objects.create(lot=lot, room=cold, moved_at=day, occurred_at=at(18))
+        for room, hour, temp in [(cold, 10, 50), (cold, 14, 99), (warm, 14, 70), (warm, 20, 99), (cold, 20, 50)]:
+            RoomCondition.objects.create(room=room, recorded_at=at(hour), temperature_f=temp, source='test')
+        env = environment_features(lot, day)
+        self.assertEqual(env['reading_count'], 3)
+        self.assertEqual(env['observed_days'], 1)
+        self.assertEqual(env['temperature_f']['max'], 70)
+        self.assertAlmostEqual(env['exposure_days'], 3)
+        self.assertEqual(env['date_only_move_count'], 1)
+
     def test_rebuild_writes_and_upserts(self):
         lot = self.make_lot('26-1', 30)
         self.add_sample(lot, 20, -9.0)
         self.add_sample(lot, 10, -7.0)
         pred = rebuild_for_lot(lot)
         self.assertEqual(pred.inputs['points'], [[10, -9.0], [20, -7.0]])
-        self.assertEqual(pred.confidence, 'med')
+        self.assertEqual(pred.confidence, 'low')  # latest usable point is at the resampling limit
         again = rebuild_for_lot(lot)
         self.assertEqual(again.pk, pred.pk)
         self.assertEqual(Prediction.objects.count(), 1)
@@ -245,7 +319,7 @@ class ServiceTests(Base):
 
         with CaptureQueriesContext(connection) as ctx:
             env = environment_features(lot, today)
-        self.assertLessEqual(len(ctx), 3)  # moves + one aggregate per interval
+        self.assertLessEqual(len(ctx), 5)  # moves, interval aggregates, unique-day coverage and precision
         self.assertEqual(env['reading_count'], 4)
         self.assertEqual(env['observed_days'], 3)
         self.assertEqual(env['exposure_days'], 21)
@@ -359,6 +433,19 @@ class ReportTests(Base):
 
 
 class AccuracyViewTests(Base):
+    def test_readiness_is_scoped_and_explicit_about_missing_evidence(self):
+        self.make_lot('VISIBLE-LOT', 5)
+        other = Plant.objects.create(code='OTHER', name='Other')
+        Lot.objects.create(plant=other, grower=self.grower, lot_no='HIDDEN-LOT', receive_date=timezone.localdate())
+        self.client.force_login(self.gm)
+        response = self.client.get(reverse('forecast:readiness'), {'plant': self.plant.code})
+        self.assertContains(response, 'VISIBLE-LOT')
+        self.assertNotContains(response, 'HIDDEN-LOT')
+        self.assertContains(response, '0 active setups')
+        self.assertContains(response, 'do not certify forecast accuracy')
+        self.client.force_login(self.foreman)
+        self.assertEqual(self.client.get(reverse('forecast:readiness')).status_code, 403)
+
     def setUp(self):
         self.gm = User.objects.create_user('gm', password='pw')
         self.gm.groups.add(Group.objects.get_or_create(name='gm')[0])
@@ -430,6 +517,7 @@ class PlanTests(Base):
         rebuild_for_lot(self.urgent, as_of=self.today)
         # calm: far from yellow -> monitor, no decision needed
         self.calm = self.make_lot('26-CALM', 10)
+        self.add_sample(self.calm, 7, -12.6)
         self.add_sample(self.calm, 1, -12.0)
         rebuild_for_lot(self.calm, as_of=self.today)
 

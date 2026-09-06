@@ -31,6 +31,7 @@ def env_list(name, default=''):
 
 ENVIRONMENT = os.environ.get('DJANGO_ENV', 'development').strip().lower()
 DEBUG = env_bool('DJANGO_DEBUG', default=ENVIRONMENT == 'development')
+DEMO_MODE = env_bool('DEMO_MODE', default=DEBUG)
 if ENVIRONMENT == 'production' and DEBUG:
     raise ImproperlyConfigured('DJANGO_DEBUG must be false in production.')
 SECRET_KEY = os.environ.get(
@@ -157,7 +158,7 @@ if os.environ.get('SUPABASE_DB_HOST'):
             'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
             'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
             'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
-            'OPTIONS': {'sslmode': 'require'},
+            'OPTIONS': {'sslmode': 'require' if ENVIRONMENT == 'production' else os.environ.get('DATABASE_SSLMODE', 'require')},
             'CONN_MAX_AGE': 60,
             'CONN_HEALTH_CHECKS': True,
         }

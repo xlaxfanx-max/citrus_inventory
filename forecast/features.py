@@ -2,7 +2,7 @@
 
 from datetime import datetime, time, timedelta
 
-from django.db.models import Avg, Count, Max, Min
+from django.db.models import Avg, Count, Max, Min, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
@@ -21,26 +21,22 @@ def room_exposure_intervals(lot, as_of):
     end_day = min(as_of, lot.packed_date) if lot.packed_date else as_of
     if end_day < lot.receive_date:
         return []
-    moves = list(
+    moves = sorted(
         lot.room_moves.filter(moved_at__lte=end_day)
-        .select_related('room')
-        .order_by('moved_at', 'id')
+        .select_related('room'), key=lambda move: (move.effective_at, move.pk)
     )
     intervals = []
     active_room = None
-    active_start = lot.receive_date
+    active_start = _aware_start(lot.receive_date)
     for move in moves:
-        move_day = max(move.moved_at, lot.receive_date)
+        move_day = max(move.effective_at, _aware_start(lot.receive_date))
         if active_room is not None and move_day > active_start:
             intervals.append((active_room, active_start, move_day))
         active_room = move.room
         active_start = move_day
     if active_room is not None:
-        intervals.append((active_room, active_start, end_day + timedelta(days=1)))
-    elif lot.current_room_id and end_day == timezone.localdate():
-        # A legacy lot may have current_room but no move audit. Mark the fallback
-        # explicitly so calibration can distinguish it from reliable exposure.
-        intervals.append((lot.current_room, lot.receive_date, end_day + timedelta(days=1)))
+        intervals.append((active_room, active_start, _aware_start(end_day + timedelta(days=1))))
+    # A current room alone cannot establish where a lot spent its history.
     return intervals
 
 
@@ -52,21 +48,21 @@ def environment_features(lot, as_of):
     reading_count = observed_days = 0
     parts = {field: [] for field in MEASURES}
     aggregates = {'n': Count('id'), 'days': Count(TruncDate('recorded_at'), distinct=True)}
+    coverage_filter = Q(pk__in=[])
     for field in MEASURES:
         aggregates.update({
             f'{field}__mean': Avg(field), f'{field}__min': Min(field),
             f'{field}__max': Max(field), f'{field}__n': Count(field),
         })
     for room, start_day, end_day in intervals:
-        agg = RoomCondition.objects.filter(
+        interval_filter = Q(
             room=room,
-            recorded_at__gte=_aware_start(start_day),
-            recorded_at__lt=_aware_start(end_day),
-        ).aggregate(**aggregates)
+            recorded_at__gte=start_day,
+            recorded_at__lt=end_day,
+        )
+        coverage_filter |= interval_filter
+        agg = RoomCondition.objects.filter(interval_filter).aggregate(**aggregates)
         reading_count += agg['n']
-        # Intervals are consecutive, non-overlapping date ranges, so their
-        # distinct-day counts add up without double counting.
-        observed_days += agg['days']
         for field in MEASURES:
             if agg[f'{field}__n']:
                 parts[field].append((agg[f'{field}__mean'], agg[f'{field}__min'], agg[f'{field}__max'], agg[f'{field}__n']))
@@ -75,16 +71,22 @@ def environment_features(lot, as_of):
             'room': room.name,
             'start': start_day.isoformat(),
             'end_exclusive': end_day.isoformat(),
-            'days': (end_day - start_day).days,
+            'days': (end_day - start_day).total_seconds() / 86400,
             'reading_count': agg['n'],
         })
     exposure_days = sum(row['days'] for row in interval_rows)
+    # Different rooms can now contribute readings on the same day. Count
+    # calendar-day coverage once across all intervals, without fetching raw data.
+    observed_days = RoomCondition.objects.filter(coverage_filter).aggregate(days=Count(TruncDate('recorded_at'), distinct=True))['days'] if intervals else 0
+    calendar_days = (min(as_of, lot.packed_date) if lot.packed_date else as_of) - lot.receive_date
+    calendar_days = max(0, calendar_days.days + 1)
     return {
         'intervals': interval_rows,
         'exposure_days': exposure_days,
         'reading_count': reading_count,
         'observed_days': observed_days,
-        'day_coverage_pct': round(100 * observed_days / exposure_days, 1) if exposure_days else 0.0,
+        'day_coverage_pct': round(100 * observed_days / calendar_days, 1) if calendar_days else 0.0,
+        'date_only_move_count': lot.room_moves.filter(moved_at__lte=as_of, occurred_at__isnull=True).count(),
         **{field: _combine(parts[field]) for field in MEASURES},
     }
 

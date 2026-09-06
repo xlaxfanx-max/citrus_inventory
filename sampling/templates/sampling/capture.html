@@ -53,14 +53,17 @@ document.addEventListener('DOMContentLoaded', () => {
 {% block content %}
 <div class="capture-shell">
 <p class="small"><a href="{% url 'sampling:picker' %}">← Back to today’s route</a></p>
-<p class="eyebrow">{{ lot.plant.code }} · About 1 minute</p>
+<p class="eyebrow">{{ lot.plant.code }} · Routine check or shelf-life holdout</p>
 <h2 class="screen-title">Sample lot {{ lot.lot_no }}</h2>
 <p class="lede">{{ lot.grower.name }} · {{ lot.current_room|default:'No room' }} · {{ lot.weeks_in_storage }} weeks stored</p>
-{% if last %}<div class="card small" style="margin-top:.8rem"><strong>Previous check · {{ last.sampled_on|date:'M j' }}</strong><br><span class="muted">{{ last.get_foreman_color_display }}, pack within {{ last.foreman_pack_within_weeks }} wk, decay {{ last.decay_count }}/{{ last.fruit_count }}</span></div>{% endif %}
+{% if last %}<div class="card small" style="margin-top:.8rem"><strong>Previous check · {{ last.sampled_on|date:'M j' }}</strong><br><span class="muted">{{ last.get_foreman_color_display }}, {{ last.foreman_pack_label }}, decay {{ last.decay_count }}/{{ last.fruit_count }}</span></div>{% endif %}
 
 <form method="post" enctype="multipart/form-data" id="capture">
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="flag red">{{ form.non_field_errors|join:' ' }}</div>{% endif %}
+  {% if lot.status == 'packed' %}<p class="flag amber">This lot has been packed. Record only the retained shelf-life holdout group here.</p>{% endif %}
+  <div class="field"><label for="id_calibration">{{ form.calibration.label }}</label><br>{{ form.calibration }}{{ form.calibration.errors }}<p class="muted small">Select the measured board, phone and light setup in use. Without calibration, color readings are exploratory.</p></div>
+  <p class="muted small">Collect 10 fruit across at least 5 bins, including accessible positions below the top layer. Record the actual selection; a zero defect count does not establish that the lot is defect-free.</p>
 
   <div class="step">1 of 4 · Photograph the fruit</div>
   <label class="photo" for="photo-input">Take first photo<br><span class="small muted">Place 10 lemons on the board, spaced apart, with all four corner markers visible.</span>
@@ -90,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="taps c8">
     {% for value, label in form.foreman_pack_within_weeks.field.choices %}
       <input type="radio" name="foreman_pack_within_weeks" id="wk_{{ value }}" value="{{ value }}" {% if form.foreman_pack_within_weeks.value|stringformat:'s' == value|stringformat:'s' %}checked{% endif %} required>
-      <label for="wk_{{ value }}">{{ value }}</label>
+      <label for="wk_{{ value }}">{{ label }}</label>
     {% endfor %}
   </div>
   {{ form.foreman_pack_within_weeks.errors }}

@@ -2,8 +2,9 @@ from django import forms
 from PIL import Image, UnidentifiedImageError
 
 from lots.models import Color
+from .models import BoardCalibration
 
-WEEK_CHOICES = [(i, f'{i} wk' if i == 1 else f'{i} wks') for i in range(1, 9)]
+WEEK_CHOICES = [(0, 'Today')] + [(i, f'{i} wk' if i == 1 else f'{i} wks') for i in range(1, 9)]
 DECAY_CHOICES = [(i, str(i)) for i in range(0, 11)]
 BIN_CHOICES = [(i, str(i)) for i in range(1, 11)]
 FIRMNESS_CHOICES = [('', 'Not checked')] + [
@@ -13,6 +14,8 @@ FIRMNESS_CHOICES = [('', 'Not checked')] + [
 
 
 class CaptureForm(forms.Form):
+    calibration = forms.ModelChoiceField(queryset=BoardCalibration.objects.none(), required=False,
+        empty_label='Uncalibrated / demonstration', label='Sampling station calibration')
     photo = forms.FileField(label='Photo of 10 fruit on the board')
     photo2 = forms.FileField(label='Second photo (optional)', required=False)
     foreman_color = forms.ChoiceField(choices=Color.choices, widget=forms.RadioSelect)
@@ -57,6 +60,11 @@ class CaptureForm(forms.Form):
         required=False,
     )
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 2}))
+
+    def __init__(self, *args, plant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if plant is not None:
+            self.fields['calibration'].queryset = BoardCalibration.objects.filter(plant=plant, active=True)
 
     def clean(self):
         data = super().clean()

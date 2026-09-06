@@ -31,7 +31,7 @@ def publish_plan(plant, today=None, user=None, source=PackPlan.Source.BOARD, set
     """Snapshot the ranked plan for `plant` as the next version. Returns the PackPlan."""
     today = today or timezone.localdate()
     settings = settings or ModelSettings.get()
-    rows = board_rows(plan_lots(plant), today, settings)
+    rows = board_rows(plan_lots(plant, today), today, settings)
     with transaction.atomic():
         current = PackPlan.objects.filter(plant=plant).aggregate(v=Max('version'))['v'] or 0
         plan = PackPlan.objects.create(
@@ -61,6 +61,7 @@ def publish_plan(plant, today=None, user=None, source=PackPlan.Source.BOARD, set
                 bins_remaining=lot.bins_remaining,
                 room_name=lot.current_room.name if lot.current_room else '',
                 days_in_storage=max(lot.days_in_storage, 0),
+                evidence_notes=row['evidence_notes'],
             ))
         PlanRecommendation.objects.bulk_create(recs)
     return plan

@@ -18,7 +18,7 @@ def _picker_lots(plant, query=''):
         Lot.objects.in_storage().at_plant(plant)
         .select_related('grower', 'current_room')
         .prefetch_related(
-            Prefetch('samples', queryset=Sample.objects.filter(is_void=False).order_by('-sampled_at', '-id'))
+            Prefetch('samples', queryset=Sample.objects.filter(is_void=False, purpose=Sample.Purpose.ROUTINE).order_by('-sampled_at', '-id'))
         )
         .order_by('receive_date', 'lot_no')
     )
@@ -96,12 +96,14 @@ def capture(request, lot_id):
     pinned = plant_for(request.user)
     if pinned is not None and lot.plant_id != pinned.id:
         raise Http404
-    if lot.status != Lot.Status.IN_STORAGE:
+    if lot.status == Lot.Status.DUMPED:
         messages.error(request, f'Lot {lot.lot_no} is {lot.get_status_display().lower()}; it cannot be sampled.')
         return redirect('sampling:picker')
 
     if request.method == 'POST':
-        form = CaptureForm(request.POST, request.FILES)
+        form = CaptureForm(request.POST, request.FILES, plant=lot.plant)
+        if lot.status == Lot.Status.PACKED and not request.POST.get('is_holdout'):
+            form.add_error(None, 'After final packing, only shelf-life holdout assessments may be recorded.')
         if form.is_valid():
             data = form.cleaned_data
             sample = Sample.objects.create(
@@ -127,12 +129,14 @@ def capture(request, lot_id):
             )
             for f in (data['photo'], data.get('photo2')):
                 if f:
-                    SamplePhoto.objects.create(sample=sample, image=f)
+                    calibration = data.get('calibration')
+                    SamplePhoto.objects.create(sample=sample, image=f,
+                        calibration_snapshot=calibration.snapshot() if calibration else {})
             messages.success(request, f'Lot {lot.lot_no} saved. Scoring in the background.')
             return redirect('sampling:sample_status', pk=sample.pk)
     else:
-        form = CaptureForm()
-    last = lot.samples.filter(is_void=False).order_by('-sampled_at').first()
+        form = CaptureForm(plant=lot.plant, initial={'is_holdout': lot.status == Lot.Status.PACKED})
+    last = lot.samples.filter(is_void=False, purpose=Sample.Purpose.ROUTINE).order_by('-sampled_at').first()
     return render(request, 'sampling/capture.html', {'lot': lot, 'form': form, 'last': last})
 
 

@@ -12,7 +12,7 @@ from forecast.models import Prediction
 from lots.models import Color, Grower, Lot, ModelSettings, Plant, Room, UserProfile
 
 from . import board, scoring
-from .models import Sample, SamplePhoto
+from .models import BoardCalibration, Sample, SamplePhoto
 
 GREEN = (110, 150, 50)
 YELLOW = (240, 205, 40)
@@ -144,7 +144,7 @@ class ScorePhotoTests(Base):
         self.assertEqual(len(photo.per_fruit_lab), 10)
         # scoring rebuilt today's prediction for the lot from the new point
         pred = Prediction.objects.get(lot=self.lot, as_of_date=date.today())
-        self.assertEqual(pred.model_version, 'v1-linear-cci')
+        self.assertEqual(pred.model_version, 'v1.1-linear-cci')
         self.assertEqual(len(pred.inputs['points']), 1)
         self.assertEqual(sample.mean_cci, photo.mean_cci)
 
@@ -179,6 +179,67 @@ class ScorePhotoTests(Base):
 
 
 class CaptureFlowTests(Base):
+    def test_today_and_calibration_survive_capture_and_scoring(self):
+        references = {p['name']: list(p['ref_rgb']) for p in board.patches()}
+        calibration = BoardCalibration.objects.create(plant=self.sla1, board_id='TEST-BOARD', phone_id='TEST-PHONE',
+            light_id='TEST-LIGHT', measured_at=timezone.now(), instrument='Synthetic test fixture only', reference_rgb=references)
+        response = self.client.post(reverse('sampling:capture', args=[self.lot.pk]), {
+            'foreman_color': 'S', 'foreman_pack_within_weeks': '0', 'decay_count': '0',
+            'calibration': calibration.pk,
+            'photo': SimpleUploadedFile('p.jpg', synthetic_photo(), content_type='image/jpeg'),
+        })
+        self.assertEqual(response.status_code, 302)
+        sample = Sample.objects.get()
+        self.assertEqual(sample.foreman_pack_by_date, sample.sampled_on)
+        self.assertEqual(sample.foreman_pack_label, 'Today')
+        photo = sample.photos.get()
+        self.assertEqual(photo.calibration_snapshot['board_id'], 'TEST-BOARD')
+        scoring.score_photo(photo)
+        photo.refresh_from_db()
+        self.assertEqual(photo.scoring_metadata['calibration']['reference_rgb'], references)
+        self.assertFalse(any('No instrument' in w for w in photo.quality_warnings))
+
+    def test_packed_lot_accepts_only_holdout_and_does_not_rebuild(self):
+        self.lot.status = Lot.Status.PACKED
+        self.lot.packed_date = timezone.localdate()
+        self.lot.save()
+        def payload():
+            return {'foreman_color': 'Y', 'foreman_pack_within_weeks': '0', 'decay_count': '0',
+                'photo': SimpleUploadedFile('p.jpg', synthetic_photo(), content_type='image/jpeg')}
+        response = self.client.post(reverse('sampling:capture', args=[self.lot.pk]), payload())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Sample.objects.count(), 0)
+        data = {**payload(), 'is_holdout': 'on', 'marketability': 'pass'}
+        self.assertEqual(self.client.post(reverse('sampling:capture', args=[self.lot.pk]), data).status_code, 302)
+        sample = Sample.objects.get()
+        self.assertEqual(sample.purpose, Sample.Purpose.HOLDOUT)
+        scoring.score_photo(sample.photos.get())
+        self.assertFalse(Prediction.objects.filter(lot=self.lot).exists())
+
+    def test_calibration_cannot_be_selected_across_plants_or_rewritten(self):
+        from .forms import CaptureForm
+        from django.core.exceptions import ValidationError
+        calibration = BoardCalibration.objects.create(plant=self.sla3, board_id='OTHER', phone_id='P', light_id='L',
+            measured_at=timezone.localtime(timezone.now()), instrument='Synthetic test fixture only',
+            reference_rgb={p['name']: list(p['ref_rgb']) for p in board.patches()})
+        calibration.active = False
+        calibration.save()
+        calibration.active = True
+        calibration.save()
+        with self.assertRaises(ValidationError):
+            CaptureForm(plant=self.sla1).fields['calibration'].clean(calibration.pk)
+        calibration.reference_rgb['yellow'] = [1, 2, 3]
+        with self.assertRaises(ValidationError):
+            calibration.save()
+        calibration.refresh_from_db()
+        calibration.active = False
+        calibration.save()
+        self.assertFalse(CaptureForm(plant=self.sla3).fields['calibration'].queryset.exists())
+
+    def test_unassigned_foreman_cannot_access_capture_directly(self):
+        UserProfile.objects.filter(user=self.foreman).update(plant=None)
+        self.assertEqual(self.client.get(reverse('sampling:capture', args=[self.lot.pk])).status_code, 403)
+
     def setUp(self):
         import tempfile
 
@@ -306,12 +367,12 @@ class CaptureFlowTests(Base):
     def test_other_plant_lot_is_hidden(self):
         self.assertEqual(self.client.get(reverse('sampling:capture', args=[self.other.pk])).status_code, 404)
 
-    def test_packed_lot_cannot_be_sampled(self):
+    def test_packed_lot_opens_holdout_assessment(self):
         self.lot.status = Lot.Status.PACKED
         self.lot.packed_date = date.today()
         self.lot.save()
         resp = self.client.get(reverse('sampling:capture', args=[self.lot.pk]))
-        self.assertRedirects(resp, reverse('sampling:picker'))
+        self.assertContains(resp, 'Record only the retained shelf-life holdout group')
 
     def test_photo_view_requires_login_and_plant(self):
         sample = Sample.objects.create(lot=self.lot, foreman_color='S', foreman_pack_within_weeks=1)

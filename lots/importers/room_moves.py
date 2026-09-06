@@ -10,18 +10,27 @@ its most recent move.
 from django.db import transaction
 
 from ..models import Lot, LotRoomMove, Plant, Room
-from .base import RowError, parse_date, require
+from .base import RowError, parse_date, parse_datetime, require
 
 COLUMNS = ['plant_code', 'lot_no', 'room', 'moved_at']
 REQUIRED_COLUMNS = COLUMNS
 
 
 def parse_row(row):
+    raw_time = row.get('moved_at')
+    try:
+        day = parse_date(raw_time, 'moved_at')
+        occurred_at = None
+    except RowError:
+        from django.utils import timezone
+        occurred_at = parse_datetime(raw_time, 'moved_at')
+        day = timezone.localtime(occurred_at).date()
     return {
         'plant_code': require(row, 'plant_code').upper(),
         'lot_no': require(row, 'lot_no'),
         'room': require(row, 'room')[:50],
-        'moved_at': parse_date(row.get('moved_at'), 'moved_at'),
+        'moved_at': day,
+        'occurred_at': occurred_at,
     }
 
 
@@ -64,14 +73,14 @@ def run(rows, batch=None):
         if room is None:
             room = Room.objects.create(plant=plant, name=d['room'])
             rooms[(plant.id, d['room'])] = room
-        LotRoomMove.objects.get_or_create(lot=lot, room=room, moved_at=d['moved_at'])
+        LotRoomMove.objects.get_or_create(lot=lot, room=room, moved_at=d['moved_at'], occurred_at=d['occurred_at'])
         ok += 1
         prev = latest.get(lot.pk)
         if prev is None or d['moved_at'] >= prev[0]:
             latest[lot.pk] = (d['moved_at'], room, lot)
 
     for when, room, lot in latest.values():
-        newest = lot.room_moves.order_by('-moved_at', '-id').first()
+        newest = max(lot.room_moves.select_related('room'), key=lambda move: (move.effective_at, move.pk), default=None)
         if newest and newest.room_id != lot.current_room_id:
             lot.current_room = newest.room
             lot.save(update_fields=['current_room'])

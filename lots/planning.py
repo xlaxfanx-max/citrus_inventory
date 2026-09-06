@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db.models import Prefetch
+from django.utils import timezone
 
 from forecast.models import PlanAction, Prediction
 from sampling.models import Sample, SamplePhoto
@@ -41,21 +42,23 @@ PACK_SOON = _action(PlanAction.PACK_SOON, 'amber', 4)
 SCORING = _action(PlanAction.SCORING, 'grey', 5)
 NEEDS_BASELINE = _action(PlanAction.NEEDS_BASELINE, 'grey', 5)
 MONITOR = _action(PlanAction.MONITOR, 'ok', 6)
+REFRESH_FORECAST = _action(PlanAction.REFRESH_FORECAST, 'amber', 2)
 
-ACTIONS = [DECAY_RISK, PACK_OVERDUE, PACK_THIS_WEEK, RETAKE_PHOTO, SAMPLE_DUE, PACK_SOON, SCORING, NEEDS_BASELINE, MONITOR]
+ACTIONS = [DECAY_RISK, PACK_OVERDUE, PACK_THIS_WEEK, RETAKE_PHOTO, SAMPLE_DUE, PACK_SOON, SCORING, NEEDS_BASELINE, MONITOR, REFRESH_FORECAST]
 ACTION_BY_CODE = {a.code: a for a in ACTIONS}
 
 
-def plan_lots(plant):
+def plan_lots(plant, today=None):
     """In-storage lots at a plant with everything the ranking needs prefetched."""
+    today = today or timezone.localdate()
     return (
         Lot.objects.in_storage().at_plant(plant)
         .select_related('grower', 'current_room', 'plant')
         .prefetch_related(
-            Prefetch('predictions', queryset=Prediction.objects.latest_per_lot()),
+            Prefetch('predictions', queryset=Prediction.objects.latest_per_lot(on_or_before=today)),
             Prefetch(
                 'samples',
-                queryset=Sample.objects.filter(is_void=False).order_by('-sampled_at', '-id').prefetch_related('photos'),
+                queryset=Sample.objects.filter(is_void=False, purpose=Sample.Purpose.ROUTINE, sampled_at__date__lte=today).order_by('-sampled_at', '-id').prefetch_related('photos'),
             ),
             'packouts',
         )
@@ -66,7 +69,7 @@ def board_rows(lots, today, settings):
     rows = []
     for lot in lots:
         pred = next(iter(lot.predictions.all()), None)
-        sample = next(iter(lot.samples.all()), None)
+        sample = next((s for s in lot.samples.all() if s.purpose == Sample.Purpose.ROUTINE and not s.is_void and s.sampled_on <= today), None)
         photo = sample.best_photo if sample else None
         statuses = {p.status for p in sample.photos.all()} if sample else set()
         # "retake" only when the latest visit produced no usable photo at all
@@ -74,7 +77,11 @@ def board_rows(lots, today, settings):
         photo_pending = SamplePhoto.Status.PENDING in statuses and SamplePhoto.Status.SCORED not in statuses
         photo_processing = SamplePhoto.Status.PROCESSING in statuses and SamplePhoto.Status.SCORED not in statuses
         photo_quality_low = bool(photo and not photo.quality_ok)
-        days_to = pred.days_to_pack_by(today) if pred else None
+        evidence_notes = pred.review_blockers(today, settings) if pred else ['No forecast yet.']
+        if photo_failed or photo_quality_low:
+            evidence_notes.append('Retake the latest routine photo before acting on color.')
+        dates_usable = bool(pred) and not evidence_notes
+        days_to = pred.days_to_pack_by(today) if dates_usable else None
         if days_to is None:
             urgency = ''
         elif days_to <= 7:
@@ -87,22 +94,24 @@ def board_rows(lots, today, settings):
         sample_overdue = (days_since_sample if days_since_sample is not None else lot.days_in_storage) >= settings.sample_overdue_days
         if pred and pred.decay_flag:
             action = DECAY_RISK
+        elif photo_failed or photo_quality_low:
+            action = RETAKE_PHOTO
+        elif photo_pending or photo_processing:
+            action = SCORING
+        elif not pred or pred.n_points < 2:
+            action = NEEDS_BASELINE
+        elif sample_overdue:
+            action = SAMPLE_DUE
+        elif evidence_notes:
+            action = REFRESH_FORECAST
         elif days_to is not None and days_to < 0:
             action = PACK_OVERDUE
         elif days_to is not None and days_to <= 7:
             action = PACK_THIS_WEEK
-        elif photo_failed or photo_quality_low:
-            action = RETAKE_PHOTO
-        elif sample_overdue:
-            action = SAMPLE_DUE
         elif days_to is not None and days_to <= 14:
             action = PACK_SOON
-        elif photo_pending or photo_processing:
-            action = SCORING
-        elif pred:
-            action = MONITOR
         else:
-            action = NEEDS_BASELINE
+            action = MONITOR
         rows.append({
             'lot': lot,
             'pred': pred,
@@ -112,6 +121,8 @@ def board_rows(lots, today, settings):
             'photo_pending': photo_pending,
             'photo_processing': photo_processing,
             'photo_quality_low': photo_quality_low,
+            'dates_usable': dates_usable,
+            'evidence_notes': evidence_notes,
             'days_to_pack_by': days_to,
             'overdue_days': -days_to if days_to is not None and days_to < 0 else None,
             'urgency': urgency,
@@ -142,7 +153,7 @@ def capacity_projection(rows, plant, today, weeks=8):
         end = start + timedelta(days=6)
         bucket_rows = []
         for row in rows:
-            pack_by = row['pred'].pack_by_date if row['pred'] else None
+            pack_by = row['pred'].pack_by_date if row['pred'] and row['dates_usable'] else None
             if not pack_by:
                 continue
             if offset == 0:

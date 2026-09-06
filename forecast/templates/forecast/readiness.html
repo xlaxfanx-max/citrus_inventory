@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Evidence readiness{% endblock %}
+{% block content %}
+<div class="toolbar spread">
+  <div><p class="eyebrow">{{ plant.code }} · Preparation</p><h2 class="screen-title">Evidence readiness</h2></div>
+  {% if plants %}<form method="get"><label for="readiness-plant">Plant</label> <select id="readiness-plant" name="plant" onchange="this.form.submit()">{% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}</select></form>{% endif %}
+</div>
+<p class="lede">See what is recorded, what still needs measurement, and which lots need more evidence before a packing-date recommendation.</p>
+<p class="muted">These checks describe data coverage. They do not certify forecast accuracy, saleable quality, inventory reconciliation, or financial benefit.</p>
+<div class="grid2">{% for name, value, meaning in checks %}<article class="card"><p class="eyebrow">{{ name }}</p><h3>{{ value }}</h3><p class="muted small">{{ meaning }}</p></article>{% endfor %}</div>
+<div class="toolbar" style="margin:1rem 0"><a class="btn" href="{% url 'lots:imports' %}">Review imports</a><a class="btn ghost" href="{% url 'forecast:accuracy' %}">Review outcomes</a>{% if user.is_staff %}<a class="btn ghost" href="{% url 'admin:sampling_boardcalibration_changelist' %}">Station calibrations</a>{% endif %}</div>
+<h2>Lots awaiting evidence · {{ blocked_count }}</h2>
+<div class="table-wrap"><table><thead><tr><th>Lot</th><th>Next action</th><th>Evidence needed</th></tr></thead><tbody>
+{% for row in rows %}{% if row.evidence_notes %}<tr><td><a href="{% url 'lots:lot_detail' row.lot.pk %}">{{ row.lot.lot_no }}</a></td><td>{{ row.priority }}</td><td style="white-space:normal">{% for note in row.evidence_notes %}{{ note }} {% endfor %}</td></tr>{% endif %}{% endfor %}
+{% if not blocked_count %}<tr><td colspan="3">No active lots are awaiting the automated evidence checks. Field validation remains a separate requirement.</td></tr>{% endif %}
+</tbody></table></div>
+<h2>Evidence to bring to the first meeting</h2>
+<p>Demonstrate receiving, a routine sample, its color history, a reviewed plan, a partial packout and a final outcome. Explain the measurement limitations and show how missing or stale data changes the recommended action.</p>
+<p class="muted">Before a field pilot, obtain paired instrument readings, total sampling-route times, actual source exports, independently recorded foreman decisions, and written quality/outcome definitions. Use a separate clean dataset for live observations.</p>
+{% endblock %}

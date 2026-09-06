@@ -30,7 +30,7 @@
 <div class="tiles" aria-label="Plan summary">
   <div class="tile"><div class="num">{{ total_rows }}</div><div class="label">Lots in view</div></div>
   <div class="tile red"><div class="num">{{ due_bins_7|floatformat:1 }}</div><div class="label">Known bins due in 7 days{% if due_bins_unknown %} · {{ due_bins_unknown }} lot{{ due_bins_unknown|pluralize }} unknown{% endif %}</div></div>
-  <div class="tile red"><div class="num">{{ n_decay }}</div><div class="label">Decay risks</div></div>
+  <div class="tile red"><div class="num">{{ n_decay }}</div><div class="label">Observed decay flags</div></div>
   <div class="tile amber"><div class="num">{{ n_overdue }}</div><div class="label">Sample checks due</div></div>
   <div class="tile amber"><div class="num">{{ n_failed }}</div><div class="label">Photos to retake</div></div>
 </div>
@@ -60,7 +60,7 @@
 <div class="table-wrap desktop-only">
 <table>
   <thead><tr>
-    <th>Priority</th><th>Lot / grower</th><th>Inventory</th><th>Decision signal</th><th>Pack window</th><th>Last check</th><th></th>
+    <th>Priority</th><th>Lot / grower</th><th>Inventory</th><th>Decision signal</th><th>Indicative pack date</th><th>Last check</th><th></th>
   </tr></thead>
   <tbody>
   {% for r in rows %}
@@ -74,14 +74,14 @@
       <td>{% if r.lot.bins_remaining is not None %}<strong>{{ r.lot.bins_remaining|floatformat:1 }} bins</strong>{% else %}<span class="flag amber">quantity unknown</span>{% endif %}<br>
         <span class="muted small">{{ r.lot.current_room|default:'No room' }} · {{ r.lot.weeks_in_storage }} wk stored</span></td>
       <td>{% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.get_stage_display }}</span>
-          {% if r.pred.decay_flag %}<span class="flag red">{{ r.pred.decay_pct|floatformat:1 }}% decay</span>{% endif %}
-          <br><span class="muted small">{{ r.pred.confidence }} confidence{% if r.pred.confidence == 'low' %} · estimated color{% endif %}</span>
+          {% if r.pred.decay_flag %}<span class="flag red">{{ r.pred.decay_pct|floatformat:1 }}% observed decay</span>{% endif %}
+          <br><span class="muted small">{{ r.pred.support_label }}{% if r.pred.confidence == 'low' %} · estimated color{% endif %}</span>
         {% elif r.photo_pending or r.photo_processing %}<span class="muted">Photo scoring in progress</span>
         {% else %}<span class="muted">No forecast yet</span>{% endif %}</td>
-      <td>{% if r.pred and r.pred.pack_by_date %}<strong>{{ r.pred.pack_by_date|date:'M j' }}</strong><br>
+      <td>{% if r.dates_usable and r.pred.pack_by_date %}<strong>{{ r.pred.pack_by_date|date:'M j' }}</strong><br>
           <span class="small {% if r.urgency == 'red' %}flag red{% else %}muted{% endif %}">{% if r.overdue_days %}{{ r.overdue_days }} day{{ r.overdue_days|pluralize }} overdue{% else %}{{ r.days_to_pack_by }} day{{ r.days_to_pack_by|pluralize }} remaining{% endif %}</span>
-        {% else %}<span class="muted">Not available</span>{% endif %}</td>
-      <td>{% if r.sample %}<strong>{{ r.days_since_sample }}d ago</strong><br><span class="muted small">Foreman: {{ r.sample.get_foreman_color_display }}, {{ r.sample.foreman_pack_within_weeks }} wk</span>
+        {% else %}<span class="muted">Awaiting evidence</span>{% endif %}{% for note in r.evidence_notes %}<p class="muted small" style="white-space:normal;max-width:260px">{{ note }}</p>{% endfor %}</td>
+      <td>{% if r.sample %}<strong>{{ r.days_since_sample }}d ago</strong><br><span class="muted small">Foreman: {{ r.sample.get_foreman_color_display }}, {{ r.sample.foreman_pack_label }}</span>
         {% else %}<span class="flag amber">Never sampled</span>{% endif %}</td>
       <td>{% if is_foreman and r.priority == 'Retake photo' %}<a class="btn small-btn" href="{% url 'sampling:capture' r.lot.pk %}">Retake</a>
         {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn small-btn" href="{% url 'sampling:capture' r.lot.pk %}">Sample</a>
@@ -103,11 +103,11 @@
     </div>
     <div class="meta-grid">
       <div><span class="metric-label">Inventory</span><span class="metric-value">{% if r.lot.bins_remaining is not None %}{{ r.lot.bins_remaining|floatformat:1 }} bins{% else %}Unknown{% endif %}</span><span class="muted small">{{ r.lot.current_room|default:'No room' }}</span></div>
-      <div><span class="metric-label">Pack window</span><span class="metric-value">{% if r.pred and r.pred.pack_by_date %}{{ r.pred.pack_by_date|date:'M j' }}{% else %}Not available{% endif %}</span>{% if r.pred and r.pred.pack_by_date %}<span class="muted small">{% if r.overdue_days %}{{ r.overdue_days }}d overdue{% else %}{{ r.days_to_pack_by }}d remaining{% endif %}</span>{% endif %}</div>
+      <div><span class="metric-label">Indicative pack date</span><span class="metric-value">{% if r.dates_usable and r.pred.pack_by_date %}{{ r.pred.pack_by_date|date:'M j' }}{% else %}Not available{% endif %}</span>{% if r.dates_usable and r.pred.pack_by_date %}<span class="muted small">{% if r.overdue_days %}{{ r.overdue_days }}d overdue{% else %}{{ r.days_to_pack_by }}d remaining{% endif %}</span>{% endif %}</div>
       <div><span class="metric-label">Last check</span><span class="metric-value">{% if r.sample %}{{ r.days_since_sample }}d ago{% else %}Never{% endif %}</span></div>
-      <div><span class="metric-label">Risk</span><span class="metric-value">{% if r.pred and r.pred.decay_flag %}{{ r.pred.decay_pct|floatformat:1 }}% decay{% else %}No decay flag{% endif %}</span></div>
+      <div><span class="metric-label">Risk</span><span class="metric-value">{% if r.pred and r.pred.decay_flag %}{{ r.pred.decay_pct|floatformat:1 }}% observed decay{% else %}No decay flag{% endif %}</span></div>
     </div>
-    <div class="toolbar" style="margin:.85rem 0 0">
+    {% for note in r.evidence_notes %}<p class="muted small">{{ note }}</p>{% endfor %}<div class="toolbar" style="margin:.85rem 0 0">
       {% if is_foreman and r.priority == 'Retake photo' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Retake photo</a>
       {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Sample lot</a>{% endif %}
       <a class="btn ghost" href="{% url 'lots:lot_detail' r.lot.pk %}">Open details</a>
@@ -119,7 +119,7 @@
 <p class="muted small">Pack dates are planning guidance. Open a lot for CCI history, drift, photos, and the full audit trail.</p>
 
 <details class="planning-details">
-  <summary>Capacity outlook · next 8 weeks</summary>
+  <summary>Capacity outlook · next 8 weeks</summary><p class="muted small">Includes only lots with current measurement evidence and an available date. Excluded lots still occupy storage and packing capacity. This is not an order-constrained schedule.</p>
   <div class="table-wrap"><table>
     <thead><tr><th>Week</th><th>Lots due</th><th>Known bins</th><th>Unknown quantities</th><th>Plant capacity</th><th>Status</th></tr></thead>
     <tbody>{% for b in capacity_projection %}

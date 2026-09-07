@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Imports{% endblock %}
 {% block content %}
-<div class="page-heading"><p class="eyebrow">Operational data</p><h1 class="screen-title">Imports</h1><p class="lede">Bring receiving, storage and packout records into one place.</p></div>
+<div class="page-heading"><h1 class="screen-title">Imports</h1><p class="lede">Upload receiving, room, treatment and packout records.</p></div>
 <div class="grid2">
   <div class="card">
-    <p class="eyebrow">Add records</p><h2 style="margin-top:0">Upload operational data</h2>
+    <h2 style="margin-top:0">Upload operational data</h2>
     <p class="muted small">Choose a file type, then upload a CSV using the matching template.</p>
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
@@ -15,7 +15,7 @@
     <p class="muted small">Receiving, room moves and packouts may come from Famous. Room-condition and treatment files add the exposure history needed for the next prediction model. Re-uploading the same file is safe.</p>
   </div>
   <div class="card">
-    <p class="eyebrow">Start with the right format</p><h2 style="margin-top:0">Blank templates</h2>
+    <h2 style="margin-top:0">Blank templates</h2>
     {% for kind, label, columns in templates %}
       <div class="template-download"><div><strong>{{ label }}</strong><details><summary>View columns</summary><p>{{ columns|join:', ' }}</p></details></div><a class="btn ghost small-btn" href="{% url 'lots:import_template' kind %}" aria-label="Download {{ label }} CSV template">Download CSV</a></div>
     {% endfor %}

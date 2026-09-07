@@ -18,7 +18,7 @@
   <li><a href="{% url 'sampling:capture' r.lot.pk %}">
     <span class="no">{{ r.lot.lot_no }}</span>
     <span class="meta">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}<br>{{ r.lot.current_room|default:'No room' }} · {% if r.last %}last check {{ r.days_since }}d ago{% else %}<strong>never sampled</strong>{% endif %}</span>
-    <span class="weeks">{% if r.last %}{{ r.days_since }}d due{% else %}{{ r.lot.weeks_in_storage }} wk{% endif %} →</span>
+    <span class="weeks">{% if r.last %}{{ r.days_since }}d since check{% else %}{{ r.lot.weeks_in_storage }} wk{% endif %}</span>
   </a></li>
   {% empty %}<li class="card muted">Nothing else is due today.</li>{% endfor %}
 </ul>

@@ -1,25 +1,25 @@
 document.documentElement.classList.add('js');
 
 const menuButton = document.querySelector('[data-nav-toggle]');
-const sidebar = document.querySelector('.sidebar');
-if (menuButton && sidebar) {
+const navigationHeader = document.querySelector('.app-header');
+if (menuButton && navigationHeader) {
   menuButton.hidden = false;
   const closeMenu = () => {
-    sidebar.classList.remove('is-open');
+    navigationHeader.classList.remove('is-open');
     menuButton.setAttribute('aria-expanded', 'false');
   };
   menuButton.addEventListener('click', () => {
-    const open = sidebar.classList.toggle('is-open');
+    const open = navigationHeader.classList.toggle('is-open');
     menuButton.setAttribute('aria-expanded', String(open));
   });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && sidebar.classList.contains('is-open')) {
+    if (event.key === 'Escape' && navigationHeader.classList.contains('is-open')) {
       closeMenu();
       menuButton.focus();
     }
   });
   document.addEventListener('click', event => {
-    if (!sidebar.contains(event.target)) closeMenu();
+    if (!navigationHeader.contains(event.target)) closeMenu();
   });
 }
 

@@ -2,16 +2,28 @@
 {% block title %}Packing plan{% endblock %}
 {% block content %}
 
-<div class="toolbar spread" style="align-items:flex-start">
+<div class="toolbar spread page-heading" style="align-items:flex-start">
   <div>
     <p class="eyebrow">{% if plant %}{{ plant.code }} · {{ plant.name }}{% else %}All plants{% endif %}</p>
-    <h2 class="screen-title">Packing plan</h2>
+    <h1 class="screen-title">Packing plan</h1>
     <p class="lede">The next decisions for inventory in storage, ranked by urgency.</p>
+    <a class="mobile-only inventory-jump" href="#inventory-priorities">View inventory priorities ↓</a>
   </div>
-  {% if is_gm and plant %}<a class="btn ghost small-btn" href="{% url 'forecast:report_preview' plant.code %}">Preview Monday report</a>{% endif %}
+  <div class="heading-actions">
+    {% if is_gm and plant %}<a class="btn ghost" href="{% url 'forecast:report_preview' plant.code %}">Monday report</a>{% endif %}
+    {% if is_foreman %}<a class="btn" href="{% url 'sampling:picker' %}">{% include 'includes/icon.html' with name='sample' %}Start sample route</a>{% endif %}
+  </div>
 </div>
 
-<form method="get" class="filter-bar" aria-label="Filter packing plan">
+<div class="tiles summary-tiles" aria-label="Plan summary">
+  <a class="tile tile-featured" href="?{% include 'lots/_board_query.html' %}attention=all"><div class="label">Lots in view</div><div class="num">{{ total_rows }}</div><span class="tile-note">Inventory in storage →</span></a>
+  <a class="tile" href="?{% include 'lots/_board_query.html' %}attention=due"><div class="label">Bins due · next 7 days</div><div class="num">{{ due_bins_7|floatformat:1 }}</div><span class="tile-note">{{ count_due }} lot{{ count_due|pluralize }}{% if due_bins_unknown %} · {{ due_bins_unknown }} unknown quantit{{ due_bins_unknown|pluralize:'y,ies' }}{% endif %} →</span></a>
+  <a class="tile {% if n_decay %}red{% endif %}" href="?{% include 'lots/_board_query.html' %}attention=decay"><div class="label">Observed decay flags</div><div class="num">{{ n_decay }}</div><span class="tile-note">{% if n_decay %}Inspect before packing{% else %}No flagged lots in view{% endif %} →</span></a>
+  <a class="tile {% if n_overdue %}amber{% endif %}" href="?{% include 'lots/_board_query.html' %}attention=sample"><div class="label">Sample checks due</div><div class="num">{{ n_overdue }}</div><span class="tile-note">{% if n_overdue %}Refresh measurement evidence{% else %}Checks up to date{% endif %} →</span></a>
+  <a class="tile {% if n_failed %}amber{% endif %}" href="?{% include 'lots/_board_query.html' %}attention=retake"><div class="label">Photos to retake</div><div class="num">{{ n_failed }}</div><span class="tile-note">{% if n_failed %}A new photo is needed{% else %}No retakes needed{% endif %} →</span></a>
+</div>
+
+<form method="get" class="filter-bar" aria-label="Filter packing plan" data-plan-filters>
   <input type="hidden" name="attention" value="{{ attention }}">
   {% if plants %}
     <div><label for="plant-filter">Plant</label><select id="plant-filter" name="plant">
@@ -24,18 +36,10 @@
   </select></div>
   <div class="grow"><label for="plan-search">Search inventory</label><input id="plan-search" type="search" name="q" value="{{ query }}" placeholder="Lot, grower, block, or room"></div>
   <button class="btn" type="submit">Apply</button>
-  <a class="btn soft" href="{% url 'lots:board' %}{% if plants and plant %}?plant={{ plant.code }}{% endif %}">Reset</a>
+  {% if query or room_id or attention != 'all' %}<a class="btn soft" href="{% url 'lots:board' %}{% if plants and plant %}?plant={{ plant.code|urlencode }}{% endif %}">Clear filters</a>{% endif %}
 </form>
 
-<div class="tiles" aria-label="Plan summary">
-  <div class="tile"><div class="num">{{ total_rows }}</div><div class="label">Lots in view</div></div>
-  <div class="tile red"><div class="num">{{ due_bins_7|floatformat:1 }}</div><div class="label">Known bins due in 7 days{% if due_bins_unknown %} · {{ due_bins_unknown }} lot{{ due_bins_unknown|pluralize }} unknown{% endif %}</div></div>
-  <div class="tile red"><div class="num">{{ n_decay }}</div><div class="label">Observed decay flags</div></div>
-  <div class="tile amber"><div class="num">{{ n_overdue }}</div><div class="label">Sample checks due</div></div>
-  <div class="tile amber"><div class="num">{{ n_failed }}</div><div class="label">Photos to retake</div></div>
-</div>
-
-{% if plant %}<div class="card status-row" style="margin:.9rem 0 .4rem;border-left:5px solid {% if plan and plan_undecided %}var(--warn-ink){% elif plan %}var(--accent){% else %}var(--muted){% endif %}">
+{% if plant %}<div class="card status-row decision-banner">
   <div>
     <span class="eyebrow">Management decisions</span>
     {% if plan %}<strong>Plan v{{ plan.version }} · {{ plan.plan_date|date:'D M j' }}{% if plan.is_locked %} · schedule locked{% endif %}</strong><br>
@@ -48,26 +52,29 @@
   </div>
 </div>{% endif %}
 
-<h2>Needs attention</h2>
+<div class="section-heading" id="inventory-priorities"><h2>Inventory priorities</h2><span class="result-count">Showing {{ rows|length }} of {{ total_rows }} lot{{ total_rows|pluralize }}<span class="desktop-only"> · Highest urgency first</span></span></div>
 <nav class="filters" aria-label="Attention filters">
-  <a class="filter-chip {% if attention == 'all' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=all">All <span>{{ count_all }}</span></a>
-  <a class="filter-chip {% if attention == 'due' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=due">Pack ≤7 days <span>{{ count_due }}</span></a>
-  <a class="filter-chip {% if attention == 'decay' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=decay">Decay <span>{{ count_decay }}</span></a>
-  <a class="filter-chip {% if attention == 'sample' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=sample">Sample due <span>{{ count_sample }}</span></a>
-  <a class="filter-chip {% if attention == 'retake' %}active{% endif %}" href="?{% if plants and plant %}plant={{ plant.code }}&amp;{% endif %}{% if room_id %}room={{ room_id }}&amp;{% endif %}{% if query %}q={{ query|urlencode }}&amp;{% endif %}attention=retake">Retake <span>{{ count_retake }}</span></a>
+  <a class="filter-chip {% if attention == 'all' %}active{% endif %}" {% if attention == 'all' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=all">All <span>{{ count_all }}</span></a>
+  <a class="filter-chip {% if attention == 'due' %}active{% endif %}" {% if attention == 'due' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=due">Pack ≤7 days <span>{{ count_due }}</span></a>
+  <a class="filter-chip {% if attention == 'decay' %}active{% endif %}" {% if attention == 'decay' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=decay">Decay <span>{{ count_decay }}</span></a>
+  <a class="filter-chip {% if attention == 'sample' %}active{% endif %}" {% if attention == 'sample' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=sample">Sample due <span>{{ count_sample }}</span></a>
+  <a class="filter-chip {% if attention == 'retake' %}active{% endif %}" {% if attention == 'retake' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=retake">Retake <span>{{ count_retake }}</span></a>
 </nav>
 
 <div class="table-wrap desktop-only">
-<table>
+<table class="inventory-table" aria-label="Packing priorities">
   <thead><tr>
-    <th>Priority</th><th>Lot / grower</th><th>Inventory</th><th>Decision signal</th><th>Indicative pack date</th><th>Last check</th><th></th>
+    <th scope="col">Priority / action</th><th scope="col">Lot / grower</th><th scope="col">Inventory</th><th scope="col">Color & quality</th><th scope="col">Indicative pack date</th><th scope="col">Last check</th>
   </tr></thead>
   <tbody>
   {% for r in rows %}
     <tr class="{{ r.urgency }}">
       <td><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span>
         {% if r.decision %}<br><span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}grey{% endif %} small" title="{{ r.decision.get_reason_display }}">{{ r.decision.get_status_display }}{% if r.decision.planned_pack_date %} → {{ r.decision.planned_pack_date|date:'M j' }}{% endif %}</span>
-        {% elif r.requires_decision and plan %}<br><span class="muted small">no decision</span>{% endif %}</td>
+        {% elif r.requires_decision and plan %}<br><span class="muted small">no decision</span>{% endif %}
+        <div class="row-action">{% if is_foreman and r.priority == 'Retake photo' %}<a class="btn ghost small-btn" href="{% url 'sampling:capture' r.lot.pk %}" aria-label="Retake photo for lot {{ r.lot.lot_no }}">Retake →</a>
+        {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn ghost small-btn" href="{% url 'sampling:capture' r.lot.pk %}" aria-label="Sample lot {{ r.lot.lot_no }}">Sample →</a>
+        {% else %}<a class="btn ghost small-btn" href="{% url 'lots:lot_detail' r.lot.pk %}" aria-label="Review lot {{ r.lot.lot_no }}">Review →</a>{% endif %}</div></td>
       <td><a href="{% url 'lots:lot_detail' r.lot.pk %}"><strong>{{ r.lot.lot_no }}</strong></a>
         {% if r.lot.is_partially_packed %}<span class="flag grey">partial</span>{% endif %}<br>
         <span class="small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></td>
@@ -80,15 +87,12 @@
         {% else %}<span class="muted">No forecast yet</span>{% endif %}</td>
       <td>{% if r.dates_usable and r.pred.pack_by_date %}<strong>{{ r.pred.pack_by_date|date:'M j' }}</strong><br>
           <span class="small {% if r.urgency == 'red' %}flag red{% else %}muted{% endif %}">{% if r.overdue_days %}{{ r.overdue_days }} day{{ r.overdue_days|pluralize }} overdue{% else %}{{ r.days_to_pack_by }} day{{ r.days_to_pack_by|pluralize }} remaining{% endif %}</span>
-        {% else %}<span class="muted">Awaiting evidence</span>{% endif %}{% for note in r.evidence_notes %}<p class="muted small" style="white-space:normal;max-width:260px">{{ note }}</p>{% endfor %}</td>
+        {% else %}<span class="muted">Awaiting evidence</span>{% endif %}{% include 'lots/_evidence_notes.html' %}</td>
       <td>{% if r.sample %}<strong>{{ r.days_since_sample }}d ago</strong><br><span class="muted small">Foreman: {{ r.sample.get_foreman_color_display }}, {{ r.sample.foreman_pack_label }}</span>
         {% else %}<span class="flag amber">Never sampled</span>{% endif %}</td>
-      <td>{% if is_foreman and r.priority == 'Retake photo' %}<a class="btn small-btn" href="{% url 'sampling:capture' r.lot.pk %}">Retake</a>
-        {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn small-btn" href="{% url 'sampling:capture' r.lot.pk %}">Sample</a>
-        {% else %}<a class="btn ghost small-btn" href="{% url 'lots:lot_detail' r.lot.pk %}">Review</a>{% endif %}</td>
     </tr>
   {% empty %}
-    <tr><td colspan="7" class="muted">No lots match this view. Clear a filter to see the full packing plan.</td></tr>
+    <tr><td colspan="6">{% include 'lots/_board_empty.html' %}</td></tr>
   {% endfor %}
   </tbody>
 </table>
@@ -99,7 +103,7 @@
   <article class="card lot-card">
     <div class="lot-card-head">
       <div><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span>{% if r.decision %} <span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}grey{% endif %}">{{ r.decision.get_status_display }}</span>{% endif %}<h3 style="margin-top:.45rem">Lot {{ r.lot.lot_no }}</h3><span class="muted small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></div>
-      {% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.stage }}</span>{% endif %}
+      {% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.get_stage_display }}</span>{% endif %}
     </div>
     <div class="meta-grid">
       <div><span class="metric-label">Inventory</span><span class="metric-value">{% if r.lot.bins_remaining is not None %}{{ r.lot.bins_remaining|floatformat:1 }} bins{% else %}Unknown{% endif %}</span><span class="muted small">{{ r.lot.current_room|default:'No room' }}</span></div>
@@ -107,13 +111,13 @@
       <div><span class="metric-label">Last check</span><span class="metric-value">{% if r.sample %}{{ r.days_since_sample }}d ago{% else %}Never{% endif %}</span></div>
       <div><span class="metric-label">Risk</span><span class="metric-value">{% if r.pred and r.pred.decay_flag %}{{ r.pred.decay_pct|floatformat:1 }}% observed decay{% else %}No decay flag{% endif %}</span></div>
     </div>
-    {% for note in r.evidence_notes %}<p class="muted small">{{ note }}</p>{% endfor %}<div class="toolbar" style="margin:.85rem 0 0">
+    {% include 'lots/_evidence_notes.html' %}<div class="toolbar" style="margin:.85rem 0 0">
       {% if is_foreman and r.priority == 'Retake photo' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Retake photo</a>
       {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Sample lot</a>{% endif %}
       <a class="btn ghost" href="{% url 'lots:lot_detail' r.lot.pk %}">Open details</a>
     </div>
   </article>
-  {% empty %}<div class="card muted">No lots match this view. Clear a filter to see the full packing plan.</div>{% endfor %}
+  {% empty %}<div class="card">{% include 'lots/_board_empty.html' %}</div>{% endfor %}
 </div>
 
 <p class="muted small">Pack dates are planning guidance. Open a lot for CCI history, drift, photos, and the full audit trail.</p>

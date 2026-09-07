@@ -32,8 +32,11 @@ For a demo season with samples, predictions and packouts across all three plants
 Tests:
 
 ```
+.venv\Scripts\python manage.py collectstatic --noinput
 .venv\Scripts\python manage.py test lots sampling forecast
 ```
+
+Collect static assets before testing: rendered pages use the production static-file manifest.
 
 Health checks: `/healthz/` reports process liveness and `/readyz/` verifies database readiness.
 

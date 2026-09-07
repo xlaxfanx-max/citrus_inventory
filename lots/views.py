@@ -33,7 +33,11 @@ def board(request):
         attention = 'all'
 
     lots = plan_lots(plant)
-    if room_id.isdigit():
+    # A saved URL or a plant switch can carry a room from another plant.
+    # Ignore invalid selections rather than silently showing an empty board.
+    if not room_id.isdigit() or not rooms.filter(pk=room_id).exists():
+        room_id = ''
+    if room_id:
         lots = lots.filter(current_room_id=int(room_id))
     if query:
         lots = lots.filter(

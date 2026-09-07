@@ -63,12 +63,13 @@ def _picker_rows(plant, query='', today=None):
 @group_required(FOREMAN, GM, ADMIN)
 def picker(request):
     plant, plants = resolve_plant(request)
-    query = request.GET.get('q', '')
+    query = request.GET.get('q', '').strip()
     today = timezone.localdate()
     rows, overdue_days = _picker_rows(plant, query, today)
-    done_today = [r for r in rows if r['done_today']]
-    due_rows = [r for r in rows if r['needs_sample'] and not r['done_today']]
-    recent_rows = [r for r in rows if not r['needs_sample'] and not r['done_today']]
+    route_rows = _picker_rows(plant, today=today)[0] if query else rows
+    done_today = [r for r in route_rows if r['done_today']]
+    due_rows = [r for r in route_rows if r['needs_sample'] and not r['done_today']]
+    recent_rows = [r for r in route_rows if not r['needs_sample'] and not r['done_today']]
     route_total = len(done_today) + len(due_rows)
     route_percent = round(100 * len(done_today) / route_total) if route_total else 100
     template = 'sampling/_lot_list.html' if request.headers.get('HX-Request') else 'sampling/picker.html'

@@ -17,7 +17,7 @@
 <div class="toolbar spread" style="align-items:flex-start">
   <div>
     <p class="eyebrow">{{ plan.plant.code }} · {{ plan.plant.name }} · {{ plan.get_source_display }}</p>
-    <h2 class="screen-title">Plan v{{ plan.version }} · {{ plan.plan_date|date:'l M j, Y' }}</h2>
+    <h1 class="screen-title">Plan v{{ plan.version }} · {{ plan.plan_date|date:'l M j, Y' }}</h1>
     <p class="lede">Published {{ plan.created_at|date:'M j H:i' }} by {{ plan.published_by|default:'the system' }} · model {{ plan.model_version }} · buffer {{ plan.settings_snapshot.buffer_days }} days · yellow at CCI {{ plan.settings_snapshot.cci_s_max }}.
       {% if plan.is_locked %}<span class="flag grey">Schedule locked {{ plan.locked_at|date:'M j H:i' }} by {{ plan.locked_by|default:'—' }}</span>{% else %}<span class="flag amber">Schedule not yet locked</span>{% endif %}</p>
   </div>

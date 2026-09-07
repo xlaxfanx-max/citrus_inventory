@@ -1,0 +1,1 @@
+{% if r.evidence_notes %}<details class="evidence-details"><summary>Evidence notes ({{ r.evidence_notes|length }})</summary>{% for note in r.evidence_notes %}<p>{{ note }}</p>{% endfor %}</details>{% endif %}

@@ -2,7 +2,7 @@
 {% block title %}Evidence readiness{% endblock %}
 {% block content %}
 <div class="toolbar spread">
-  <div><p class="eyebrow">{{ plant.code }} · Preparation</p><h2 class="screen-title">Evidence readiness</h2></div>
+  <div><p class="eyebrow">{{ plant.code }} · Preparation</p><h1 class="screen-title">Evidence readiness</h1></div>
   {% if plants %}<form method="get"><label for="readiness-plant">Plant</label> <select id="readiness-plant" name="plant" onchange="this.form.submit()">{% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}</select></form>{% endif %}
 </div>
 <p class="lede">See what is recorded, what still needs measurement, and which lots need more evidence before a packing-date recommendation.</p>

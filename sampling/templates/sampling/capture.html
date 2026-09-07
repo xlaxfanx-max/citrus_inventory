@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <div class="capture-shell">
 <p class="small"><a href="{% url 'sampling:picker' %}">← Back to today’s route</a></p>
 <p class="eyebrow">{{ lot.plant.code }} · Routine check or shelf-life holdout</p>
-<h2 class="screen-title">Sample lot {{ lot.lot_no }}</h2>
+<h1 class="screen-title">Sample lot {{ lot.lot_no }}</h1>
 <p class="lede">{{ lot.grower.name }} · {{ lot.current_room|default:'No room' }} · {{ lot.weeks_in_storage }} weeks stored</p>
 {% if last %}<div class="card small" style="margin-top:.8rem"><strong>Previous check · {{ last.sampled_on|date:'M j' }}</strong><br><span class="muted">{{ last.get_foreman_color_display }}, {{ last.foreman_pack_label }}, decay {{ last.decay_count }}/{{ last.fruit_count }}</span></div>{% endif %}
 

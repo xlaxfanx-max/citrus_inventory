@@ -10,7 +10,7 @@
 {% block content %}
 <div class="status-shell">
 <p class="eyebrow">Lot {{ sample.lot.lot_no }} · {{ sample.lot.grower.name }}</p>
-<h2 class="screen-title">Sample saved</h2>
+<h1 class="screen-title">Sample saved</h1>
 <p class="lede">{{ sample.get_foreman_color_display }} · pack within {{ sample.foreman_pack_within_weeks }} wk · decay {{ sample.decay_count }}/{{ sample.fruit_count }}</p>
 
 {% if waiting %}

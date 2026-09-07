@@ -3,7 +3,7 @@
 {% block content %}
 <p class="small"><a href="{% url 'lots:board' %}?plant={{ lot.plant.code }}">← {{ lot.plant.code }} packing plan</a></p>
 <div class="toolbar spread">
-  <div><p class="eyebrow">{{ lot.plant.code }} · {{ lot.get_status_display }}</p><h2 class="screen-title">Lot {{ lot.lot_no }}</h2></div>
+  <div><p class="eyebrow">{{ lot.plant.code }} · {{ lot.get_status_display }}</p><h1 class="screen-title">Lot {{ lot.lot_no }}</h1></div>
   {% if lot.status == 'packed' and is_foreman %}<a class="btn" href="{% url 'sampling:capture' lot.pk %}">Assess shelf-life holdout</a>{% endif %}{% if lot.status == 'in_storage' and is_foreman %}<a class="btn" href="{% url 'sampling:capture' lot.pk %}">Sample this lot</a>{% endif %}
 </div>
 <p class="muted">{{ lot.grower.name }}{% if lot.block %} · block {{ lot.block }}{% endif %} · {{ lot.variety }} · received {{ lot.receive_date }} as <span class="chip {{ lot.receiving_color }}">{{ lot.get_receiving_color_display }}</span>
@@ -25,14 +25,15 @@
   <div class="tile"><div class="num">{% if latest and latest.decay_flag %}<span class="flag red">{{ latest.decay_pct|floatformat:1 }}%</span>{% elif latest %}{{ latest.decay_pct|floatformat:1 }}%{% else %}—{% endif %}</div><div class="label">Decay observed in recent samples</div></div>
 </div>
 
-<h2>Color trajectory</h2><p class="muted small">The line estimates peel-color change. It does not estimate a verified expiry or remaining marketable life. Trend support describes the available observations and fit, not a probability of correctness.</p>{% if plan_row %}{% for note in plan_row.evidence_notes %}<p class="flag amber">{{ note }}</p>{% endfor %}{% endif %}
+<nav class="section-links" aria-label="Lot details sections"><a href="#color-trajectory">Color history</a><a href="#storage-exposure">Storage</a><a href="#photos">Photos</a><a href="#samples">Samples</a><a href="#plan-decisions">Decisions</a></nav>
+<h2 id="color-trajectory">Color trajectory</h2><p class="muted small">The line estimates peel-color change. It does not estimate a verified expiry or remaining marketable life. Trend support describes the available observations and fit, not a probability of correctness.</p>{% if plan_row %}{% for note in plan_row.evidence_notes %}<p class="flag amber">{{ note }}</p>{% endfor %}{% endif %}
 <div class="card">{{ chart_svg }}
   {% if latest %}<details style="margin-top:.5rem"><summary class="muted small">Technical model details</summary><p class="muted small">Model {{ latest.model_version }} as of {{ latest.as_of_date }} · method {{ latest.inputs.method }}{% if latest.inputs.fit %} · slope {{ latest.inputs.fit.slope }} · R² {{ latest.inputs.fit.r2 }} · n {{ latest.inputs.fit.n }}{% endif %}{% for n in latest.inputs.notes %} · {{ n }}{% endfor %}</p></details>{% endif %}
 </div>
 
 <div class="grid2">
   <div>
-    <h2>Storage exposure</h2>
+    <h2 id="storage-exposure">Storage exposure</h2>
     <div class="tiles">
       <div class="tile"><div class="num">{% if environment.temperature_f %}{{ environment.temperature_f.mean|floatformat:1 }}°F{% else %}—{% endif %}</div><div class="label">Observed mean temperature</div></div>
       <div class="tile"><div class="num">{% if environment.relative_humidity_pct %}{{ environment.relative_humidity_pct.mean|floatformat:1 }}%{% else %}—{% endif %}</div><div class="label">Observed mean RH</div></div>
@@ -50,12 +51,12 @@
   </div>
 </div>
 
-<h2>Photos</h2>
+<h2 id="photos">Photos</h2>
 {% if photos %}
 <div style="display:flex;gap:.6rem;flex-wrap:wrap">
   {% for p in photos %}
   <div class="card" style="padding:.5rem;width:160px">
-    {% if p.image %}<a href="{% url 'sampling:photo' p.pk %}"><img src="{% url 'sampling:photo' p.pk %}?thumb=1" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px" loading="lazy"></a>{% else %}<div class="muted small" style="height:80px">no image file</div>{% endif %}
+    {% if p.image %}<a href="{% url 'sampling:photo' p.pk %}"><img src="{% url 'sampling:photo' p.pk %}?thumb=1" alt="Sample photo for lot {{ lot.lot_no }} on {{ p.sample.sampled_on }}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px" loading="lazy"></a>{% else %}<div class="muted small" style="height:80px">no image file</div>{% endif %}
     <div class="small">{{ p.sample.sampled_on }}<br>{% if p.calibration_snapshot %}<span class="muted">Board {{ p.calibration_snapshot.board_id }} · {{ p.calibration_snapshot.phone_id }}</span>{% else %}<span class="flag amber">Uncalibrated</span>{% endif %}<br>
       {% if p.status == 'scored' and p.quality_ok %}<span class="flag ok">CCI {{ p.mean_cci|floatformat:2 }}</span> <span class="muted">{{ p.fruit_detected }} fruit</span>
       {% elif p.status == 'scored' %}<span class="flag amber">excluded</span>{% for warning in p.quality_warnings %}<br><span class="muted">{{ warning }}</span>{% endfor %}
@@ -66,7 +67,7 @@
 </div>
 {% else %}<p class="muted">No photos yet.</p>{% endif %}
 
-<h2>Samples</h2>
+<h2 id="samples">Samples</h2>
 <div class="table-wrap"><table>
   <thead><tr><th>Date</th><th>By</th><th>Selection</th><th>Foreman color</th><th>Pack within</th><th>Defects / 10</th><th>CCI distribution</th><th>Holdout</th><th>Notes</th></tr></thead>
   <tbody>
@@ -81,7 +82,7 @@
   {% empty %}<tr><td colspan="9" class="muted">Not sampled yet.</td></tr>{% endfor %}
   </tbody></table></div>
 
-<h2>Plan decisions</h2>
+<h2 id="plan-decisions">Plan decisions</h2>
 <div class="table-wrap"><table>
   <thead><tr><th>Plan</th><th>Action</th><th>Pack by then</th><th>Decision</th><th>Reason</th><th>Planned pack</th><th>By</th><th>Notes</th></tr></thead>
   <tbody>

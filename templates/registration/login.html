@@ -1,16 +1,23 @@
 {% extends 'base.html' %}
 {% block title %}Log in{% endblock %}
 {% block content %}
-<div class="card" style="max-width:420px;margin:2rem auto">
-  <h2 style="margin-top:0">Log in</h2>
-  {% if form.errors %}<p class="flag red">Wrong username or password.</p>{% endif %}
+<div class="login-layout">
+  <div class="login-intro">
+    <div>{% include 'includes/icon.html' with name='leaf' %}<p class="eyebrow">Saticoy storage operations</p><h2>A clearer view.<br>A better next step.</h2><p>Follow every lot from storage to packing, with your team’s observations in one place.</p></div>
+    <div class="login-steps"><span>01 · Sample</span><span>02 · Review</span><span>03 · Plan</span></div>
+  </div>
+  <div class="login-form">
+  <p class="eyebrow">Your workspace</p><h1>Welcome back</h1>
+  <p class="muted">Log in to your plant’s operations.</p>
+  {% if form.errors %}<p class="flag red" role="alert">Wrong username or password. Check your details and try again.</p>{% endif %}
   <form method="post">
     {% csrf_token %}
-    <div class="field"><label for="id_username">Username</label><br><input type="text" name="username" id="id_username" autocomplete="username" autocapitalize="none" required style="width:100%"></div>
+    <div class="field"><label for="id_username">Username</label><br><input type="text" name="username" id="id_username" value="{{ form.username.value|default:'' }}" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></div>
     <div class="field"><label for="id_password">Password</label><br><input type="password" name="password" id="id_password" autocomplete="current-password" required style="width:100%"></div>
     <input type="hidden" name="next" value="{{ next }}">
     <button class="btn big" type="submit">Log in</button>
   </form>
-  <p class="muted small">You stay logged in on this phone for 30 days.</p>
+  <p class="login-help">You stay logged in on this device for 30 days. On a shared device, log out when you finish.</p>
+  </div>
 </div>
 {% endblock %}

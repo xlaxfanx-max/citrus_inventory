@@ -302,6 +302,14 @@ class CaptureFlowTests(Base):
         self.assertContains(resp, '1 check left')
         self.assertContains(resp, 'Checked recently (1)')
 
+    def test_search_does_not_change_the_daily_route_progress(self):
+        baseline = self.client.get(reverse('sampling:picker'))
+        response = self.client.get(reverse('sampling:picker'), {'q': 'no-matching-lot'})
+        self.assertEqual(response.context['rows'], [])
+        for key in ('route_total', 'route_done', 'route_remaining', 'route_percent', 'next_row'):
+            self.assertEqual(response.context[key], baseline.context[key])
+        self.assertContains(response, 'No lots in storage match.')
+
     def test_submit_creates_sample_and_pending_photos(self):
         resp = self.client.post(reverse('sampling:capture', args=[self.lot.pk]), {
             'photo': SimpleUploadedFile('a.jpg', synthetic_photo(), content_type='image/jpeg'),

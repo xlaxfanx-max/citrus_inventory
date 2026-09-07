@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-<h2 style="margin-top:0">Model settings</h2>
+<div class="page-heading"><p class="eyebrow">Platform configuration</p><h1 class="screen-title">Model settings</h1></div>
 <p class="muted">Calibrate against foreman calls in the first three weeks. Changes apply at the next prediction build (nightly, or after the next scored photo). Photos already scored keep their CCI; only the stage labels and dates move.</p>
 <form method="post">
   {% csrf_token %}

@@ -3,143 +3,63 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#3a6b35">
+<meta name="theme-color" content="#245b43">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Lemon Tracker">
 <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
 <link rel="apple-touch-icon" href="{% static 'icons/icon-192.png' %}">
 <link rel="icon" href="{% static 'icons/icon-192.png' %}">
+<link rel="stylesheet" href="{% static 'app.css' %}">
+<script src="{% static 'app.js' %}" defer></script>
 <title>{% block title %}Plant board{% endblock %} · Lemon Tracker</title>
-<style>
-  :root {
-    --bg: #f4f6f1; --card: #fff; --ink: #1f2c1c; --muted: #667161; --line: #dde3d8;
-    --accent: #356631; --accent-dark: #234b20; --accent-ink: #fff; --soft: #edf3e9;
-    --warn-bg: #fdf3d7; --warn-ink: #8a6d00; --alert-bg: #fbe4e0; --alert-ink: #a13c2a;
-    --ok-bg: #e4f0dc; --ok-ink: #2e5d2a;
-    --dg: #2e5d2a; --lg: #7ba05b; --s: #c9d1b8; --y: #e3c545;
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
-  header.top { background: var(--accent-dark); color: #fff; padding: .55rem max(1rem, env(safe-area-inset-right)) .55rem max(1rem, env(safe-area-inset-left)); display: flex; align-items: center; gap: .55rem 1rem; position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 8px rgb(20 45 18 / 18%); }
-  header.top h1 { font-size: 1.02rem; margin: 0; font-weight: 720; white-space: nowrap; }
-  header.top nav { display: flex; gap: .15rem; align-items: center; margin-left: auto; }
-  header.top a, header.top button { color: #dce9d7; text-decoration: none; font-size: .9rem; background: none; border: 0; border-radius: 7px; padding: .38rem .55rem; cursor: pointer; font: inherit; white-space: nowrap; }
-  header.top a.active { color: #fff; background: rgb(255 255 255 / 14%); }
-  header.top a:hover, header.top button:hover { color: #fff; background: rgb(255 255 255 / 9%); }
-  main { max-width: 1280px; margin: 1.15rem auto; padding: 0 1rem 2rem; }
-  h2 { font-size: 1.05rem; margin: 1.4rem 0 .5rem; }
-  h3 { font-size: .95rem; margin: 1rem 0 .4rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-  a { color: var(--accent); }
-  .muted { color: var(--muted); }
-  .small { font-size: .85rem; }
-  .screen-title { margin: 0; font-size: clamp(1.35rem, 2.2vw, 1.8rem); line-height: 1.2; }
-  .eyebrow { margin: 0 0 .2rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: .76rem; font-weight: 750; }
-  .lede { margin: .3rem 0 0; color: var(--muted); max-width: 62rem; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: .6rem; }
-  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .9rem; }
-  .tile .num { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
-  .tile .label { color: var(--muted); font-size: .8rem; }
-  .tile.red .num { color: var(--alert-ink); } .tile.amber .num { color: var(--warn-ink); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .9rem 1rem; box-shadow: 0 1px 2px rgb(31 44 28 / 4%); }
-  .table-wrap { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
-  th, td { text-align: left; padding: .5rem .7rem; white-space: nowrap; vertical-align: middle; }
-  th { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--card); }
-  tbody tr { border-bottom: 1px solid var(--line); }
-  tbody tr:last-child { border-bottom: none; }
-  tr.red td:first-child { box-shadow: inset 4px 0 0 var(--alert-ink); }
-  tr.amber td:first-child { box-shadow: inset 4px 0 0 var(--warn-ink); }
-  .chip { display: inline-block; padding: .05rem .55rem; border-radius: 99px; font-size: .78rem; font-weight: 650; color: #fff; }
-  .chip.DG { background: var(--dg); } .chip.LG { background: var(--lg); }
-  .chip.S { background: var(--s); color: var(--ink); } .chip.Y { background: var(--y); color: var(--ink); }
-  .chip.none { background: #d5d9cf; color: var(--muted); }
-  .flag { display: inline-block; padding: .05rem .5rem; border-radius: 5px; font-size: .78rem; font-weight: 650; }
-  .flag.red { background: var(--alert-bg); color: var(--alert-ink); }
-  .flag.amber { background: var(--warn-bg); color: var(--warn-ink); }
-  .flag.ok { background: var(--ok-bg); color: var(--ok-ink); }
-  .flag.grey { background: #e6e9e1; color: var(--muted); }
-  .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; display: block; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: .72rem 1.05rem; min-height: 44px; font: inherit; font-weight: 680; text-decoration: none; cursor: pointer; }
-  .btn.big { width: 100%; padding: 1rem; font-size: 1.1rem; }
-  .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-  .btn.soft { background: var(--soft); color: var(--accent-dark); }
-  .btn.small-btn { min-height: 36px; padding: .42rem .72rem; font-size: .86rem; }
-  button:disabled, .btn[aria-disabled="true"] { opacity: .65; cursor: wait; }
-  .messages { list-style: none; padding: 0; margin: 0 0 .8rem; }
-  .messages li { padding: .6rem .9rem; border-radius: 8px; margin-bottom: .4rem; background: var(--ok-bg); color: var(--ok-ink); }
-  .messages li.warning { background: var(--warn-bg); color: var(--warn-ink); }
-  .messages li.error { background: var(--alert-bg); color: var(--alert-ink); }
-  .toolbar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin: .8rem 0; }
-  .toolbar.spread { justify-content: space-between; }
-  .filter-bar { display: flex; gap: .55rem; flex-wrap: wrap; align-items: end; padding: .75rem; margin: 1rem 0 .7rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-  .filter-bar .grow { flex: 1 1 220px; }
-  .filter-bar label { display: block; color: var(--muted); font-size: .76rem; margin-bottom: .2rem; }
-  .filter-bar input, .filter-bar select { width: 100%; min-height: 42px; }
-  .filters { display: flex; gap: .4rem; overflow-x: auto; padding: .15rem 0 .55rem; scrollbar-width: thin; }
-  .filter-chip { display: inline-flex; align-items: center; gap: .35rem; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px; padding: .45rem .72rem; background: var(--card); color: var(--ink); text-decoration: none; font-size: .88rem; font-weight: 650; }
-  .filter-chip span { min-width: 1.35rem; padding: .02rem .35rem; border-radius: 999px; background: var(--soft); text-align: center; font-size: .78rem; }
-  .filter-chip.active { border-color: var(--accent); background: var(--soft); color: var(--accent-dark); }
-  .mobile-only { display: none; }
-  .lot-cards { display: grid; gap: .65rem; }
-  .lot-card { color: var(--ink); text-decoration: none; }
-  .lot-card-head, .status-row { display: flex; gap: .6rem; align-items: flex-start; justify-content: space-between; }
-  .lot-card h3 { color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 1.08rem; margin: 0; }
-  .lot-card .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem 1rem; margin-top: .8rem; }
-  .metric-label { display: block; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
-  .metric-value { display: block; font-weight: 650; margin-top: .05rem; }
-  .planning-details { margin-top: 1.2rem; }
-  .planning-details > summary { cursor: pointer; font-weight: 720; padding: .75rem 0; }
-  select, input[type=text], input[type=search], input[type=number], input[type=email], input[type=password], textarea { font: inherit; padding: .55rem .7rem; border: 1px solid #c9cfc2; border-radius: 8px; background: #fff; max-width: 100%; }
-  input[type=file] { font: inherit; }
-  label { font-weight: 600; }
-  .field { margin-bottom: 1rem; }
-  .field .help { color: var(--muted); font-size: .85rem; }
-  .errorlist { color: var(--alert-ink); margin: .2rem 0; padding-left: 1.1rem; font-size: .9rem; }
-  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
-  :focus-visible { outline: 3px solid #90b6d7; outline-offset: 2px; }
-  footer { margin: 2rem 0 1rem; text-align: center; color: var(--muted); font-size: .8rem; }
-  @media (max-width: 760px) {
-    header.top { align-items: stretch; flex-wrap: wrap; padding-bottom: .35rem; }
-    header.top h1 { padding: .25rem .15rem; }
-    header.top nav { order: 2; width: 100%; margin: 0; overflow-x: auto; padding-bottom: .15rem; scrollbar-width: none; }
-    header.top nav::-webkit-scrollbar { display: none; }
-    header.top nav a, header.top nav button { min-height: 38px; padding: .35rem .45rem; font-size: .84rem; }
-    main { margin-top: .8rem; padding: 0 .65rem calc(2rem + env(safe-area-inset-bottom)); }
-    th, td { padding: .45rem .5rem; }
-    .desktop-only { display: none !important; }
-    .mobile-only { display: block; }
-    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .tile .num { font-size: 1.3rem; }
-    .filter-bar { align-items: stretch; }
-    .filter-bar > div, .filter-bar .btn { flex: 1 1 140px; }
-  }
-</style>
 {% block head %}{% endblock %}
 </head>
-<body>
-<header class="top">
-  <h1>🍋 Lemon Tracker</h1>
-  <nav>
+<body class="{% if user.is_authenticated %}authenticated{% else %}signed-out{% endif %}">
+<a class="skip-link" href="#main-content">Skip to content</a>
+<aside class="sidebar" aria-label="Workspace navigation">
+  <div class="brand-row">
+    <a class="brand" href="{% url 'lots:board' %}" aria-label="Lemon Tracker home"><span class="brand-mark">{% include 'includes/icon.html' with name='leaf' %}</span><span>Lemon Tracker<small>SATICOY OPERATIONS</small></span></a>
+    {% if user.is_authenticated %}<button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="workspace-navigation" hidden>{% include 'includes/icon.html' with name='menu' %}<span>Menu</span></button>{% endif %}
+  </div>
+  {% if user.is_authenticated %}
+  <div class="sidebar-content" id="workspace-navigation">
+    <nav aria-label="Main navigation">
+      <p class="nav-label">Workspace</p>
+      <a href="{% url 'lots:board' %}" class="nav-link {% if request.resolver_match.url_name == 'board' or request.resolver_match.url_name == 'lot_detail' %}active{% endif %}" {% if request.resolver_match.url_name == 'board' or request.resolver_match.url_name == 'lot_detail' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='plan' %}Packing plan</a>
+      <a href="{% url 'forecast:plan_list' %}" class="nav-link {% if request.resolver_match.url_name|slice:':5' == 'plan_' %}active{% endif %}" {% if request.resolver_match.url_name|slice:':5' == 'plan_' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='decisions' %}Decisions</a>
+      {% if is_foreman %}<a href="{% url 'sampling:picker' %}" class="nav-link {% if request.resolver_match.app_name == 'sampling' %}active{% endif %}" {% if request.resolver_match.app_name == 'sampling' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='sample' %}Sample route</a>{% endif %}
+      {% if is_gm %}
+      <p class="nav-label">Data & insights</p>
+      <a href="{% url 'lots:imports' %}" class="nav-link {% if 'import' in request.resolver_match.url_name %}active{% endif %}" {% if 'import' in request.resolver_match.url_name %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='import' %}Imports</a>
+      <a href="{% url 'forecast:accuracy' %}" class="nav-link {% if request.resolver_match.url_name == 'accuracy' %}active{% endif %}" {% if request.resolver_match.url_name == 'accuracy' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='chart' %}Validation</a>
+      <a href="{% url 'forecast:readiness' %}" class="nav-link {% if request.resolver_match.url_name == 'readiness' %}active{% endif %}" {% if request.resolver_match.url_name == 'readiness' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='readiness' %}Readiness</a>
+      {% endif %}
+      {% if is_admin or user.is_staff %}<p class="nav-label">Manage</p>{% endif %}
+      {% if is_admin %}<a href="{% url 'lots:settings' %}" class="nav-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}" {% if request.resolver_match.url_name == 'settings' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='settings' %}Settings</a>{% endif %}
+      {% if user.is_staff %}<a href="/admin/" class="nav-link">{% include 'includes/icon.html' with name='admin' %}Administration</a>{% endif %}
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="workspace-note">{% include 'includes/icon.html' with name='leaf' %}<span>From storage<br><strong>to the right next step.</strong></span></div>
+      <div class="account"><span class="avatar" aria-hidden="true">{{ user.username|first|upper }}</span><span class="account-name">{{ user.get_short_name|default:user.username }}<small>{% if is_admin %}Administrator{% elif is_gm %}General manager{% else %}Foreman{% endif %}</small></span></div>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="nav-link logout" type="submit">{% include 'includes/icon.html' with name='logout' %}Log out</button></form>
+    </div>
+  </div>
+  {% endif %}
+</aside>
+<div class="workspace">
+  {% if user.is_authenticated %}<header class="workspace-top"><span><span class="workspace-dot" aria-hidden="true"></span>Storage operations</span><span class="workspace-date">{% now 'l, F j, Y' %}</span></header>{% endif %}
+  <main id="main-content" tabindex="-1">
     {% if user.is_authenticated %}
-      <a href="{% url 'lots:board' %}" class="{% if request.resolver_match.url_name == 'board' %}active{% endif %}">Plan</a>
-      <a href="{% url 'forecast:plan_list' %}" class="{% if request.resolver_match.url_name|slice:':5' == 'plan_' %}active{% endif %}">Decisions</a>
-      {% if is_foreman %}<a href="{% url 'sampling:picker' %}" class="{% if request.resolver_match.app_name == 'sampling' %}active{% endif %}">Samples</a>{% endif %}
-      {% if is_gm %}<a href="{% url 'lots:imports' %}" class="{% if 'import' in request.resolver_match.url_name %}active{% endif %}">Imports</a>
-      <a href="{% url 'forecast:accuracy' %}" class="{% if request.resolver_match.url_name == 'accuracy' %}active{% endif %}">Validation</a>
-      <a href="{% url 'forecast:readiness' %}" class="{% if request.resolver_match.url_name == 'readiness' %}active{% endif %}">Readiness</a>{% endif %}
-      {% if is_admin %}<a href="{% url 'lots:settings' %}" class="{% if request.resolver_match.url_name == 'settings' %}active{% endif %}">Settings</a>{% endif %}
-      {% if user.is_staff %}<a href="/admin/">Admin</a>{% endif %}
-      <form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button type="submit" title="{{ user.username }}">Log out</button></form>
+    <details class="planning-notice">
+      <summary><span class="notice-marker" aria-hidden="true">i</span><span>{% if demo_mode %}<strong>Demonstration mode</strong><span class="notice-separator">·</span>Example data. {% endif %}Color estimates require manager review. Shelf life is unvalidated.</span><span class="notice-more">About these estimates</span></summary>
+      <p>{% if demo_mode %}Example records do not establish field accuracy. {% endif %}Color-based planning estimates require manager review. Remaining marketable life has not been validated.</p>
+    </details>
     {% endif %}
-  </nav>
-</header>
-<main>
-  {% if user.is_authenticated %}<p class="flag amber" style="display:block">{% if demo_mode %}<strong>Demonstration mode.</strong> Example records do not establish field accuracy. {% endif %}Color-based planning estimates require manager review. Remaining marketable life has not been validated.</p>{% endif %}
-  {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
-  {% block content %}{% endblock %}
-</main>
-<footer>Saticoy lemon storage decision support · <a href="{% url 'lots:board' %}">packing plan</a></footer>
+    {% if messages %}<ul class="messages" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>Saticoy lemon storage decision support <span aria-hidden="true">·</span> <a href="{% url 'lots:board' %}">Packing plan</a></footer>
+</div>
 </body>
 </html>

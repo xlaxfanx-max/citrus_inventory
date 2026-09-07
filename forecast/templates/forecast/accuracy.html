@@ -2,7 +2,7 @@
 {% block title %}Model validation{% endblock %}
 {% block content %}
 <div class="toolbar">
-  <div><p class="eyebrow">Decision quality</p><h2 class="screen-title">Model validation {% if plant %}· {{ plant.code }}{% endif %}</h2></div>
+  <div><p class="eyebrow">Decision quality</p><h1 class="screen-title">Model validation {% if plant %}· {{ plant.code }}{% endif %}</h1></div>
   {% if plants %}<form method="get"><select name="plant" onchange="this.form.submit()">{% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} {{ p.name }}</option>{% endfor %}</select></form>{% endif %}
 </div>
 <p class="muted">Schedule alignment compares recommended dates with when management chose to pack; it is not biological forecast accuracy. Direct validation comes from observed color and decay recorded at packout. Fresh percent is split by whether the lot packed on or before the model date.</p>

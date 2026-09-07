@@ -436,6 +436,27 @@ class ViewAccessTests(Base):
                 resp = self.client.get(reverse('lots:board'), {'plant': 'SLA1', 'q': query})
                 self.assertContains(resp, '26-1001')
 
+    def test_plant_switch_discards_a_room_from_the_previous_plant(self):
+        room = Room.objects.create(plant=self.sla1, name='Old plant cooler')
+        self.client.force_login(self.gm)
+        resp = self.client.get(reverse('lots:board'), {'plant': 'SLA3', 'room': room.pk})
+        self.assertContains(resp, '26-3001')
+        self.assertNotContains(resp, '26-1001')
+        self.assertEqual(resp.context['room_id'], '')
+
+    def test_room_filter_keeps_valid_selection_and_clears_invalid_values(self):
+        room = Room.objects.create(plant=self.sla1, name='Selected cooler')
+        self.make_lot('26-ROOM', current_room=room)
+        self.client.force_login(self.foreman)
+        resp = self.client.get(reverse('lots:board'), {'room': room.pk})
+        self.assertContains(resp, '26-ROOM')
+        self.assertNotContains(resp, '26-1001')
+        for value in ('bad-room', '999999999'):
+            with self.subTest(room=value):
+                resp = self.client.get(reverse('lots:board'), {'room': value})
+                self.assertContains(resp, '26-1001')
+                self.assertEqual(resp.context['room_id'], '')
+
     def test_packing_plan_attention_filter_only_shows_matching_lots(self):
         from forecast.models import Prediction
 

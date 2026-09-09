@@ -1,7 +1,7 @@
 # Application runtime
 django>=6.1,<6.2
 opencv-python-headless>=4.10,<5
-numpy>=2.0,<3
+numpy>=2.5.3,<3
 pillow>=10,<13
 
 # Production web, static files, Postgres, and private S3-compatible photo storage

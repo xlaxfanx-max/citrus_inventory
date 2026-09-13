@@ -8,7 +8,7 @@
     <p class="lede">Every published packing plan, what management decided on each recommendation, and how the pilot scorecard is tracking.</p>
   </div>
   {% if is_gm and plant %}
-  <form method="post" action="{% url 'forecast:plan_publish' plant.code %}">{% csrf_token %}<button class="btn" type="submit">Publish plan now</button></form>
+  <form method="post" action="{% url 'forecast:plan_publish' plant.code %}" class="publish-form">{% csrf_token %}<label class="small muted" for="publish-market">Market</label><select id="publish-market" name="market_regime" aria-label="Market context this week"><option value="">Not set</option>{% for value, label in market_regimes %}<option value="{{ value }}" {% if latest and latest.market_regime == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><button class="btn" type="submit">Publish plan now</button></form>
   {% endif %}
 </div>
 
@@ -30,13 +30,14 @@
 
 <h2>Versions</h2>
 <div class="table-wrap"><table>
-  <thead><tr><th>Version</th><th>Plan date</th><th>Source</th><th>Published by</th><th>Lots</th><th>Need decision</th><th>Decided</th><th>Accepted / deferred / overridden</th><th>Lock</th><th></th></tr></thead>
+  <thead><tr><th>Version</th><th>Plan date</th><th>Source</th><th>Market</th><th>Published by</th><th>Lots</th><th>Need decision</th><th>Decided</th><th>Accepted / deferred / overridden</th><th>Lock</th><th></th></tr></thead>
   <tbody>
   {% for r in rows %}
     <tr>
       <td><a href="{{ r.plan.get_absolute_url }}"><strong>v{{ r.plan.version }}</strong></a></td>
       <td>{{ r.plan.plan_date|date:'D M j' }}</td>
       <td>{{ r.plan.get_source_display }}</td>
+      <td>{{ r.plan.get_market_regime_display|default:'—' }}</td>
       <td>{{ r.plan.published_by|default:'system' }}</td>
       <td>{{ r.coverage.total }}</td>
       <td>{{ r.coverage.actionable }}</td>
@@ -46,7 +47,7 @@
       <td><a class="btn ghost small-btn" href="{{ r.plan.get_absolute_url }}">{% if is_gm and r.coverage.undecided %}Record decisions{% else %}Review{% endif %}</a></td>
     </tr>
   {% empty %}
-    <tr><td colspan="10" class="muted">No plan has been published for this plant yet. The Monday report publishes one automatically{% if is_gm %}, or publish one now from the button above{% endif %}.</td></tr>
+    <tr><td colspan="11" class="muted">No plan has been published for this plant yet. The Monday report publishes one automatically{% if is_gm %}, or publish one now from the button above{% endif %}.</td></tr>
   {% endfor %}
   </tbody>
 </table></div>

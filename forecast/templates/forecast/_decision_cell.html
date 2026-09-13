@@ -1,0 +1,39 @@
+{% comment %}One recommendation's decision box. Rendered inside the desktop table cell and
+the phone card, and returned on its own by plan_decide for in-place updates.
+Context: r (row dict), plan, can_decide, open_rec.{% endcomment %}
+<div class="decision-box" data-decision-for="{{ r.rec.pk }}">
+  {% if r.decision %}
+    <div class="decision-current">
+      <span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}red{% endif %}">{{ r.decision.get_status_display }}</span>
+      {% if r.decision.after_lock %}<span class="flag grey" title="Recorded after the schedule was locked">after lock</span>{% endif %}
+      {% if r.decision.reason %}<br><span class="small">{{ r.decision.get_reason_display }}</span>{% endif %}
+      {% if r.decision.planned_pack_date %}<br><span class="small">Planned pack {{ r.decision.planned_pack_date|date:'M j' }}</span>{% endif %}
+      {% if r.decision.notes %}<br><span class="small muted">{{ r.decision.notes }}</span>{% endif %}
+      <br><span class="small muted">{{ r.decision.decided_by|default:'—' }} · {{ r.decision.decided_at|date:'M j H:i' }}{% if r.decision.market_regime %} · {{ r.decision.get_market_regime_display|lower }} market{% endif %}</span>
+      {% if r.history|length > 1 %}<ul class="history">{% for d in r.history %}{% if not forloop.first %}<li>{{ d.get_status_display }}{% if d.reason %} · {{ d.get_reason_display }}{% endif %} · {{ d.decided_by|default:'—' }} {{ d.decided_at|date:'M j H:i' }}</li>{% endif %}{% endfor %}</ul>{% endif %}
+    </div>
+  {% else %}
+    <span class="flag amber">No decision recorded</span>
+  {% endif %}
+  {% if r.form %}
+    {% if not r.decision %}
+    <form method="post" action="{% url 'forecast:plan_decide' plan.pk r.rec.pk %}" class="quick-accept" data-decision>
+      {% csrf_token %}
+      <input type="hidden" name="{{ r.form.status.html_name }}" value="accepted">
+      <button class="btn small-btn" type="submit" aria-label="Accept the recommendation for lot {{ r.rec.lot.lot_no }}">Accept</button>
+    </form>
+    {% endif %}
+    <details class="decide" {% if open_rec == r.rec.pk|stringformat:'s' or r.form.errors %}open{% endif %}>
+      <summary>{% if r.decision %}Change decision{% else %}Defer or override…{% endif %}</summary>
+      <form method="post" action="{% url 'forecast:plan_decide' plan.pk r.rec.pk %}" class="decision-form" data-decision>
+        {% csrf_token %}
+        {% if r.form.non_field_errors %}<div class="wide errorlist">{{ r.form.non_field_errors }}</div>{% endif %}
+        <div><label for="{{ r.form.status.id_for_label }}">Decision</label>{{ r.form.status }}{{ r.form.status.errors }}</div>
+        <div><label for="{{ r.form.reason.id_for_label }}">Reason (deferral or override)</label>{{ r.form.reason }}{{ r.form.reason.errors }}</div>
+        <div><label for="{{ r.form.planned_pack_date.id_for_label }}">Planned pack date</label>{{ r.form.planned_pack_date }}{{ r.form.planned_pack_date.errors }}</div>
+        <div class="wide"><label for="{{ r.form.notes.id_for_label }}">Notes</label>{{ r.form.notes }}{{ r.form.notes.errors }}</div>
+        <div><button class="btn small-btn" type="submit">Save decision</button></div>
+      </form>
+    </details>
+  {% endif %}
+</div>

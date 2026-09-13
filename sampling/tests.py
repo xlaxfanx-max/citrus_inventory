@@ -8,6 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from forecast.model import MODEL_VERSION
 from forecast.models import Prediction
 from lots.models import Color, Grower, Lot, ModelSettings, Plant, Room, UserProfile
 
@@ -99,6 +100,7 @@ class PipelineTests(TestCase):
         self.assertEqual(len(board.patches()), 9)
 
 
+@override_settings(FOREMAN_DEFAULT_LANGUAGE='en')
 class Base(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -144,7 +146,7 @@ class ScorePhotoTests(Base):
         self.assertEqual(len(photo.per_fruit_lab), 10)
         # scoring rebuilt today's prediction for the lot from the new point
         pred = Prediction.objects.get(lot=self.lot, as_of_date=date.today())
-        self.assertEqual(pred.model_version, 'v1.1-linear-cci')
+        self.assertEqual(pred.model_version, MODEL_VERSION)
         self.assertEqual(len(pred.inputs['points']), 1)
         self.assertEqual(sample.mean_cci, photo.mean_cci)
 
@@ -331,7 +333,7 @@ class CaptureFlowTests(Base):
         self.assertEqual(sample.shrivel_count, 1)
         self.assertEqual(sample.rind_breakdown_count, 1)
         self.assertEqual(sample.firmness_score, 3)
-        self.assertEqual(sample.fruit_count, 10)
+        self.assertEqual(sample.fruit_count, ModelSettings.get().sample_fruit_count)
         self.assertEqual(sample.photos.count(), 2)
         self.assertTrue(all(p.status == SamplePhoto.Status.PENDING for p in sample.photos.all()))
         resp = self.client.get(reverse('sampling:picker'))
@@ -393,3 +395,105 @@ class CaptureFlowTests(Base):
         self.assertTrue(body.startswith(b'\xff\xd8'))
         self.client.logout()
         self.assertEqual(self.client.get(reverse('sampling:photo', args=[photo.pk])).status_code, 302)
+
+
+class SampleSizeAndTimingTests(Base):
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.override = override_settings(MEDIA_ROOT=self.tmp.name)
+        self.override.enable()
+        self.client.force_login(self.foreman)
+
+    def tearDown(self):
+        self.override.disable()
+
+    def payload(self, **extra):
+        data = {'foreman_color': 'S', 'foreman_pack_within_weeks': '2', 'decay_count': '0', 'fruit_count': '25',
+                'photo': SimpleUploadedFile('p.jpg', synthetic_photo(), content_type='image/jpeg')}
+        data.update(extra)
+        return data
+
+    def test_capture_screen_asks_for_the_configured_fruit_count(self):
+        resp = self.client.get(reverse('sampling:capture', args=[self.lot.pk]))
+        self.assertContains(resp, 'data-fruit-count="25"')
+        self.assertContains(resp, 'data-double-count="50"')
+        self.assertContains(resp, 'name="opened_at"')
+        self.assertContains(resp, 'novalidate')
+        settings = ModelSettings.get()
+        settings.sample_fruit_count = 10
+        settings.save()
+        resp = self.client.get(reverse('sampling:capture', args=[self.lot.pk]))
+        self.assertContains(resp, 'data-fruit-count="10"')
+
+    def test_sample_records_fruit_count_capture_time_and_device(self):
+        opened = int(timezone.now().timestamp()) - 75
+        resp = self.client.post(reverse('sampling:capture', args=[self.lot.pk]), self.payload(decay_count='3', opened_at=str(opened)),
+                                HTTP_USER_AGENT='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) TestPhone')
+        self.assertEqual(resp.status_code, 302)
+        sample = Sample.objects.get()
+        self.assertEqual((sample.fruit_count, sample.decay_count), (25, 3))
+        self.assertTrue(74 <= sample.capture_seconds <= 80)
+        self.assertIn('TestPhone', sample.photos.get().device_info)
+
+    def test_doubled_sample_allows_counts_up_to_fifty_and_rejects_more(self):
+        resp = self.client.post(reverse('sampling:capture', args=[self.lot.pk]), self.payload(fruit_count='50', decay_count='7'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Sample.objects.get().fruit_count, 50)
+        resp = self.client.post(reverse('sampling:capture', args=[self.lot.pk]), self.payload(fruit_count='25', decay_count='30'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Cannot exceed the 25 fruit inspected.')
+        self.assertEqual(Sample.objects.count(), 1)
+
+    def test_implausible_timer_is_ignored(self):
+        resp = self.client.post(reverse('sampling:capture', args=[self.lot.pk]), self.payload(opened_at='12'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIsNone(Sample.objects.get().capture_seconds)
+
+    def test_calibration_snapshot_carries_device_and_white_balance(self):
+        references = {p['name']: list(p['ref_rgb']) for p in board.patches()}
+        calibration = BoardCalibration.objects.create(plant=self.sla1, board_id='B1', phone_id='P1', light_id='L1',
+            device_model='Pixel 8a', white_balance_mode='Daylight 5000K',
+            measured_at=timezone.now(), instrument='Synthetic test fixture only', reference_rgb=references)
+        self.assertEqual(calibration.snapshot()['white_balance_mode'], 'Daylight 5000K')
+        self.assertEqual(calibration.snapshot()['device_model'], 'Pixel 8a')
+
+    def test_defect_summary_lists_only_non_zero_counts(self):
+        sample = Sample.objects.create(lot=self.lot, foreman_color='S', foreman_pack_within_weeks=2, fruit_count=25, decay_count=2, soft_count=1)
+        self.assertEqual(sample.defect_summary, 'decay 2 · soft 1 of 25')
+        clean = Sample.objects.create(lot=self.lot, foreman_color='S', foreman_pack_within_weeks=2, fruit_count=25)
+        self.assertEqual(clean.defect_summary, 'none of 25')
+
+
+class ColorCorrectionMethodTests(TestCase):
+    @staticmethod
+    def _photo(canvas, size=(1600, 1200), tilt=0.06):
+        import cv2
+        W, H = size
+        src = np.float32([[0, 0], [board.CANVAS_W, 0], [board.CANVAS_W, board.CANVAS_H], [0, board.CANVAS_H]])
+        dx, dy = tilt * W, tilt * H
+        dst = np.float32([[W * 0.12 + dx, H * 0.14], [W * 0.88, H * 0.12 + dy], [W * 0.86 - dx, H * 0.86], [W * 0.14, H * 0.88 - dy]])
+        photo = cv2.warpPerspective(canvas, cv2.getPerspectiveTransform(src, dst), (W, H), borderValue=(30, 30, 30))
+        return cv2.imencode('.jpg', photo, [cv2.IMWRITE_JPEG_QUALITY, 90])[1].tobytes()
+
+    def test_curve_method_matches_linear_on_an_ideal_board_and_records_method(self):
+        data = synthetic_photo(color=YELLOW, cast=(1.08, 1.0, 0.9))
+        linear = scoring.score_image(data, min_fruit=6, method='linear')
+        curve = scoring.score_image(data, min_fruit=6, method='curve')
+        self.assertEqual(linear['correction']['method'], 'linear')
+        self.assertEqual(curve['correction']['method'], 'curve')
+        self.assertTrue(curve['correction']['grey_curve_monotone'])
+        self.assertTrue(curve['correction']['applied'])
+        self.assertAlmostEqual(linear['mean_cci'], curve['mean_cci'], delta=1.0)
+
+    def test_missing_corner_marker_is_rejected(self):
+        canvas = board.render_canvas([(cx, cy, 1.2, YELLOW) for cx, cy in board.default_fruit_layout()])
+        x, y = board.MARKER_POSITIONS_IN[3]
+        q = board.px(board.MARKER_QUIET_IN)
+        size = board.px(board.MARKER_SIZE_IN)
+        x0, y0 = max(0, board.px(x) - q), max(0, board.px(y) - q)
+        canvas[y0:y0 + size + 2 * q, x0:x0 + size + 2 * q] = (12, 12, 12)
+        with self.assertRaises(scoring.ScoringError) as ctx:
+            scoring.score_image(self._photo(canvas), min_fruit=6)
+        self.assertIn('all four corner markers', str(ctx.exception))
+        self.assertIn('[3]', str(ctx.exception))

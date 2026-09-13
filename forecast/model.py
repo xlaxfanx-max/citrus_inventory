@@ -12,15 +12,37 @@ spec leaves open, resolved here:
 * Threshold dates are anchored to receipt/observations, including crossings
   in the past. Passing time alone must never move a deadline forward.
 * Forecasts beyond the horizon have no date. Old observations lower support.
+* Prior drift rates were set for a 55 F (12.8 C) room. When the lot's room
+  setpoint is known, the prior is scaled by the bell-shaped temperature
+  response of lemon degreening (Mitalo et al. 2020, J Exp Bot: fastest near
+  15 C, suppressed at 5 C, halted near 25 C). A fitted slope already reflects
+  the room the lot sat in and is never scaled.
 """
 
+import math
 from datetime import timedelta
 
-MODEL_VERSION = 'v1.1-linear-cci'
+MODEL_VERSION = 'v1.2-linear-cci'
 MIN_SLOPE = 0.005          # CCI per day; below this the line is treated as flat
 MAX_FIT_POINTS = 5
 HIGH_CONF_MIN_POINTS = 4
 HIGH_CONF_MIN_R2 = 0.7
+
+TEMP_PEAK_C = 15.0         # fastest degreening
+TEMP_WIDTH_C = 7.0         # Gaussian width: ~0.13x at 5 C and 25 C, ~0.9x at 12.8 C
+PRIOR_REFERENCE_C = 12.8   # the room temperature the priors in ModelSettings describe (55 F)
+
+
+def temperature_rate_factor(temp_c):
+    """Relative degreening speed at temp_c, 1.0 at the 15 C peak."""
+    return math.exp(-((temp_c - TEMP_PEAK_C) / TEMP_WIDTH_C) ** 2)
+
+
+def prior_at_temperature(prior, temp_c):
+    """Scale a 55 F prior to the room the lot is actually in."""
+    if temp_c is None:
+        return prior
+    return prior * temperature_rate_factor(temp_c) / temperature_rate_factor(PRIOR_REFERENCE_C)
 
 
 def ols(xs, ys):
@@ -53,12 +75,15 @@ def decay_summary(samples, flag_pct):
     return rate, bool(rate * 100 >= flag_pct or rising)
 
 
-def predict(*, as_of, receive_date, receiving_color, points, decay_samples, settings):
+def predict(*, as_of, receive_date, receiving_color, points, decay_samples, settings, room_temp_c=None):
     """points: [(days_since_receive, mean_cci), ...] in any order.
+    room_temp_c: current room setpoint, used only to scale the prior drift.
     Returns a dict with the Prediction fields plus 'inputs'."""
     day_now = (as_of - receive_date).days
     yellow = settings.yellow_threshold
-    prior = settings.prior_drift(receiving_color)
+    base_prior = settings.prior_drift(receiving_color)
+    use_temperature = bool(getattr(settings, 'temperature_response', False)) and room_temp_c is not None
+    prior = round(prior_at_temperature(base_prior, room_temp_c), 5) if use_temperature else base_prior
     # One independent visit-day per point. Extra photos/visits on the same day
     # must not increase support or overweight that day in the regression.
     by_day = {}
@@ -105,6 +130,8 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
     if stale:
         confidence = 'low'
         notes.append(f'latest usable observation is {last_sample_age} days old; resample before acting')
+    if use_temperature and method != 'ols':
+        notes.append(f'prior drift scaled for a {room_temp_c:g} C room (x{prior / base_prior:.2f} vs 12.8 C)')
     # Compute a fixed crossing relative to receipt, rather than setting it to
     # today once yellow. For priors, use the same fixed observation anchor.
     if method == 'ols':
@@ -148,6 +175,9 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
             'fit': fit,
             'method': method,
             'prior_drift': prior,
+            'prior_drift_at_55f': base_prior,
+            'room_temp_c': room_temp_c,
+            'temperature_factor': round(temperature_rate_factor(room_temp_c) / temperature_rate_factor(PRIOR_REFERENCE_C), 4) if use_temperature else None,
             'start_cci': settings.start_cci(receiving_color),
             'thresholds': settings.thresholds_dict(),
             'buffer_days': settings.buffer_days,

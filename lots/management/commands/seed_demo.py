@@ -17,11 +17,11 @@ from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from forecast.models import Prediction
+from forecast.models import PackPlan, Prediction
 from forecast.services import rebuild_for_lot
 from sampling.models import Sample, SamplePhoto
 
-from ...models import Color, Grower, Lot, LotRoomMove, ModelSettings, Packout, Plant, Room, UserProfile
+from ...models import Color, Grower, Lot, LotRoomMove, LotTreatment, ModelSettings, Packout, Plant, Room, UserProfile
 from .seed_plants import PLANTS
 
 GROWERS = [
@@ -51,10 +51,14 @@ class Command(BaseCommand):
         today = date.today()
         cfg = ModelSettings.get()
 
+        # Every reference to a lot is PROTECT, so dependents go first, in
+        # dependency order. This is the only place lots are hard-deleted.
+        PackPlan.objects.all().delete()  # cascades recommendations and decisions
         Prediction.objects.all().delete()
         SamplePhoto.objects.all().delete()
         Sample.objects.all().delete()
         Packout.objects.all().delete()
+        LotTreatment.objects.all().delete()
         LotRoomMove.objects.all().delete()
         Lot.objects.all().hard_delete()  # explicit demo-only escape hatch
         Room.objects.all().delete()
@@ -104,7 +108,7 @@ class Command(BaseCommand):
             receive_date=receive_date, receiving_color=receiving_color, bins_received=rng.randint(40, 180),
             current_room=rng.choice(rooms),
         )
-        LotRoomMove.objects.create(lot=lot, room=lot.current_room, moved_at=receive_date)
+        LotRoomMove.objects.create(lot=lot, room=lot.current_room, moved_on=receive_date)
 
         # a hidden "true" trajectory for this lot
         true_start = cfg.start_cci(receiving_color) + rng.uniform(-1.5, 1.5)

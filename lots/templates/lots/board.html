@@ -1,41 +1,42 @@
 {% extends 'base.html' %}
-{% block title %}Packing plan{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Packing plan" %}{% endblock %}
 {% block content %}
 
 <div class="toolbar spread page-heading" style="align-items:flex-start">
   <div>
-    <p class="eyebrow">{% if plant %}{{ plant.code }} · {{ plant.name }}{% else %}All plants{% endif %}</p>
-    <h1 class="screen-title">Packing plan</h1>
-        <a class="mobile-only inventory-jump" href="#inventory-priorities">View inventory priorities ↓</a>
+    <p class="eyebrow">{% if plant %}{{ plant.code }} · {{ plant.name }}{% else %}{% trans "All plants" %}{% endif %}</p>
+    <h1 class="screen-title">{% trans "Packing plan" %}</h1>
+        <a class="mobile-only inventory-jump" href="#inventory-priorities">{% trans "View inventory priorities" %} ↓</a>
   </div>
   <div class="heading-actions">
-    {% if is_gm and plant %}<a class="btn ghost" href="{% url 'forecast:report_preview' plant.code %}">Monday report</a>{% endif %}
-    {% if is_foreman %}<a class="btn" href="{% url 'sampling:picker' %}">{% include 'includes/icon.html' with name='sample' %}Start sample route</a>{% endif %}
+    {% if is_gm and plant %}<a class="btn ghost" href="{% url 'forecast:report_preview' plant.code %}">{% trans "Monday report" %}</a>{% endif %}
+    {% if is_foreman %}<a class="btn" href="{% url 'sampling:picker' %}">{% include 'includes/icon.html' with name='sample' %}{% trans "Start sample route" %}</a>{% endif %}
   </div>
 </div>
 
 <div class="tiles summary-tiles" aria-label="Plan summary">
-  <a class="tile" href="?{% include 'lots/_board_query.html' %}attention=all"><span class="num">{{ total_rows }}</span><span class="label">Lots in view</span></a>
-  <a class="tile" href="?{% include 'lots/_board_query.html' %}attention=due"><span class="num">{{ due_bins_7|floatformat:1 }}</span><span class="label">Known bins due · 7 days</span>{% if due_bins_unknown %}<span class="tile-note quantity-note">{{ due_bins_unknown }} lot{{ due_bins_unknown|pluralize }} with unknown quantity</span>{% endif %}</a>
-  <a class="tile {% if n_decay %}red{% endif %}" href="?{% include 'lots/_board_query.html' %}attention=decay"><span class="num">{{ n_decay }}</span><span class="label">Observed decay flags</span></a>
-  <a class="tile {% if n_overdue %}amber{% endif %}" href="?{% include 'lots/_board_query.html' %}attention=sample"><span class="num">{{ n_overdue }}</span><span class="label">Sample checks due</span></a>
-  <a class="tile {% if n_failed %}amber{% endif %}" href="?{% include 'lots/_board_query.html' %}attention=retake"><span class="num">{{ n_failed }}</span><span class="label">Photos to retake</span></a>
+  <a class="tile" {% if attention == 'all' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=all"><span class="num">{{ total_rows }}</span><span class="label">{% trans "Lots in view" %}</span></a>
+  <a class="tile {% if count_due %}red{% endif %}" {% if attention == 'due' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=due"><span class="num">{{ due_bins_7|floatformat:0 }}</span><span class="label">{% trans "Known bins due · 7 days" %} · {% blocktrans count n=count_due %}{{ n }} lot{% plural %}{{ n }} lots{% endblocktrans %}</span>{% if due_bins_unknown %}<span class="tile-note quantity-note">{{ due_bins_unknown }} lot{{ due_bins_unknown|pluralize }} with unknown quantity</span>{% endif %}</a>
+  <a class="tile {% if n_decay %}red{% endif %}" {% if attention == 'decay' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=decay"><span class="num">{{ n_decay }}</span><span class="label">{% trans "Observed decay flags" %}</span></a>
+  <a class="tile {% if n_overdue %}amber{% endif %}" {% if attention == 'sample' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=sample"><span class="num">{{ n_overdue }}</span><span class="label">{% trans "Sample checks due" %}</span></a>
+  <a class="tile {% if n_failed %}amber{% endif %}" {% if attention == 'retake' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=retake"><span class="num">{{ n_failed }}</span><span class="label">{% trans "Photos to retake" %}</span></a>
 </div>
 
 <form method="get" class="filter-bar" aria-label="Filter packing plan" data-plan-filters>
   <input type="hidden" name="attention" value="{{ attention }}">
   {% if plants %}
-    <div><label for="plant-filter">Plant</label><select id="plant-filter" name="plant">
+    <div><label for="plant-filter">{% trans "Plant" %}</label><select id="plant-filter" name="plant">
       {% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}
     </select></div>
   {% endif %}
-  <div><label for="room-filter">Room</label><select id="room-filter" name="room">
-    <option value="">All rooms</option>
+  <div><label for="room-filter">{% trans "Room" %}</label><select id="room-filter" name="room">
+    <option value="">{% trans "All rooms" %}</option>
     {% for r in rooms %}<option value="{{ r.id }}" {% if room_id == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
   </select></div>
-  <div class="grow"><label for="plan-search">Search inventory</label><input id="plan-search" type="search" name="q" value="{{ query }}" placeholder="Lot, grower, block, or room"></div>
-  <button class="btn" type="submit">Apply</button>
-  {% if query or room_id or attention != 'all' %}<a class="btn soft" href="{% url 'lots:board' %}{% if plants and plant %}?plant={{ plant.code|urlencode }}{% endif %}">Clear filters</a>{% endif %}
+  <div class="grow"><label for="plan-search">{% trans "Search inventory" %}</label><input id="plan-search" type="search" name="q" value="{{ query }}" placeholder="{% trans 'Lot, grower, block, or room' %}"></div>
+  <button class="btn" type="submit" data-hide-with-js>{% trans "Apply" %}</button>
+  {% if query or room_id or attention != 'all' %}<a class="btn soft" href="{% url 'lots:board' %}{% if plants and plant %}?plant={{ plant.code|urlencode }}{% endif %}">{% trans "Clear filters" %}</a>{% endif %}
 </form>
 
 {% if plant %}<div class="card status-row decision-banner">
@@ -46,18 +47,11 @@
   </div>
   <div class="toolbar" style="margin:0">
     {% if plan %}<a class="btn ghost small-btn" href="{{ plan.get_absolute_url }}">{% if is_gm and plan_undecided %}Record decisions{% else %}Review plan{% endif %}</a>{% endif %}
-    {% if is_gm %}<form method="post" action="{% url 'forecast:plan_publish' plant.code %}">{% csrf_token %}<button class="btn small-btn" type="submit">Publish plan{% if plan %} v{{ plan.version|add:1 }}{% endif %}</button></form>{% endif %}
+    {% if is_gm %}<form method="post" action="{% url 'forecast:plan_publish' plant.code %}" class="publish-form">{% csrf_token %}<label class="small muted" for="publish-market">Market</label><select id="publish-market" name="market_regime" aria-label="Market context this week"><option value="">Not set</option>{% for value, label in market_regimes %}<option value="{{ value }}" {% if plan and plan.market_regime == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><button class="btn small-btn" type="submit">Publish plan{% if plan %} v{{ plan.version|add:1 }}{% endif %}</button></form>{% endif %}
   </div>
 </div>{% endif %}
 
-<div class="section-heading" id="inventory-priorities"><h2>Inventory priorities</h2><span class="result-count">Showing {{ rows|length }} of {{ total_rows }} lot{{ total_rows|pluralize }}<span class="desktop-only"> · Highest urgency first</span></span></div>
-<nav class="filters" aria-label="Attention filters">
-  <a class="filter-chip {% if attention == 'all' %}active{% endif %}" {% if attention == 'all' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=all">All <span>{{ count_all }}</span></a>
-  <a class="filter-chip {% if attention == 'due' %}active{% endif %}" {% if attention == 'due' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=due">Pack ≤7 days <span>{{ count_due }}</span></a>
-  <a class="filter-chip {% if attention == 'decay' %}active{% endif %}" {% if attention == 'decay' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=decay">Decay <span>{{ count_decay }}</span></a>
-  <a class="filter-chip {% if attention == 'sample' %}active{% endif %}" {% if attention == 'sample' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=sample">Sample due <span>{{ count_sample }}</span></a>
-  <a class="filter-chip {% if attention == 'retake' %}active{% endif %}" {% if attention == 'retake' %}aria-current="page"{% endif %} href="?{% include 'lots/_board_query.html' %}attention=retake">Retake <span>{{ count_retake }}</span></a>
-</nav>
+<div class="section-heading" id="inventory-priorities"><h2>{% trans "Inventory priorities" %}</h2><span class="result-count">{% blocktrans with shown=rows|length total=total_rows %}Showing {{ shown }} of {{ total }} lots{% endblocktrans %}<span class="desktop-only"> · {% trans "Highest urgency first" %}</span></span></div>
 
 <div class="table-wrap desktop-only">
 <table class="inventory-table" aria-label="Packing priorities">
@@ -70,7 +64,7 @@
       <td><a class="lot-number" href="{% url 'lots:lot_detail' r.lot.pk %}"><strong>{{ r.lot.lot_no }}</strong></a>
         {% if r.lot.is_partially_packed %}<span class="flag grey">partial</span>{% endif %}<br>
         <span class="small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></td>
-      <td>{% if r.lot.bins_remaining is not None %}<strong>{{ r.lot.bins_remaining|floatformat:1 }} bins</strong>{% else %}<span class="flag amber">quantity unknown</span>{% endif %}<br>
+      <td>{% if r.lot.bins_remaining is not None %}<strong>{{ r.lot.bins_remaining|floatformat:0 }} bins</strong>{% else %}<span class="flag amber">quantity unknown</span>{% endif %}<br>
         <span class="muted small">{{ r.lot.current_room|default:'No room' }} · {{ r.lot.weeks_in_storage }} wk stored</span></td>
       <td><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span>
         {% if r.decision %}<br><span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}grey{% endif %} small" title="{{ r.decision.get_reason_display }}">{{ r.decision.get_status_display }}{% if r.decision.planned_pack_date %} → {{ r.decision.planned_pack_date|date:'M j' }}{% endif %}</span>
@@ -79,6 +73,7 @@
       <td>{% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.get_stage_display }}</span>
           {% if r.pred.decay_flag %}<span class="flag red">{{ r.pred.decay_pct|floatformat:1 }}% observed decay</span>{% endif %}
           <br><span class="muted small">{{ r.pred.support_label }}{% if r.pred.confidence == 'low' %} · estimated color{% endif %}</span>
+          {% include 'lots/_warm_clock.html' %}
         {% elif r.photo_pending or r.photo_processing %}<span class="muted">Photo scoring in progress</span>
         {% else %}<span class="muted">No forecast yet</span>{% endif %}</td>
       <td>{% if r.dates_usable and r.pred.pack_by_date %}<strong>{{ r.pred.pack_by_date|date:'M j' }}</strong><br>
@@ -86,8 +81,8 @@
         {% else %}<span class="muted">Awaiting evidence</span>{% endif %}{% include 'lots/_evidence_notes.html' %}</td>
       <td>{% if r.sample %}<strong>{{ r.days_since_sample }}d ago</strong><br><span class="muted small" title="Foreman assessment">{{ r.sample.get_foreman_color_display }} · {{ r.sample.foreman_pack_label }}</span>
         {% else %}<span class="flag amber">Never sampled</span>{% endif %}</td>
-      <td><div class="row-action">{% if is_foreman and r.priority == 'Retake photo' %}<a href="{% url 'sampling:capture' r.lot.pk %}" aria-label="Retake photo for lot {{ r.lot.lot_no }}">Retake</a>
-        {% elif is_foreman and r.priority == 'Sample due' %}<a href="{% url 'sampling:capture' r.lot.pk %}" aria-label="Sample lot {{ r.lot.lot_no }}">Sample</a>
+      <td><div class="row-action">{% if is_foreman and r.priority_code == 'retake_photo' %}<a href="{% url 'sampling:capture' r.lot.pk %}" aria-label="Retake photo for lot {{ r.lot.lot_no }}">Retake</a>
+        {% elif is_foreman and r.priority_code == 'sample_due' %}<a href="{% url 'sampling:capture' r.lot.pk %}" aria-label="Sample lot {{ r.lot.lot_no }}">Sample</a>
         {% else %}<a href="{% url 'lots:lot_detail' r.lot.pk %}" aria-label="Review lot {{ r.lot.lot_no }}">Review</a>{% endif %}</div></td>
     </tr>
   {% empty %}
@@ -101,33 +96,33 @@
   {% for r in rows %}
   <article class="card lot-card">
     <div class="lot-card-head">
-      <div><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span>{% if r.decision %} <span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}grey{% endif %}">{{ r.decision.get_status_display }}</span>{% endif %}<h3 style="margin-top:.45rem">Lot {{ r.lot.lot_no }}</h3><span class="muted small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></div>
+      <div><span class="flag {{ r.priority_tone }}">{{ r.priority }}</span>{% if r.decision %} <span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}grey{% endif %}">{{ r.decision.get_status_display }}</span>{% endif %}<h3 style="margin-top:.45rem">{% trans "Lot" %} {{ r.lot.lot_no }}</h3><span class="muted small">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}</span></div>
       {% if r.pred %}<span class="chip {{ r.pred.stage }}">{{ r.pred.get_stage_display }}</span>{% endif %}
     </div>
     <div class="meta-grid">
-      <div><span class="metric-label">Inventory</span><span class="metric-value">{% if r.lot.bins_remaining is not None %}{{ r.lot.bins_remaining|floatformat:1 }} bins{% else %}Unknown{% endif %}</span><span class="muted small">{{ r.lot.current_room|default:'No room' }}</span></div>
-      <div><span class="metric-label">Indicative pack date</span><span class="metric-value">{% if r.dates_usable and r.pred.pack_by_date %}{{ r.pred.pack_by_date|date:'M j' }}{% else %}Not available{% endif %}</span>{% if r.dates_usable and r.pred.pack_by_date %}<span class="muted small">{% if r.overdue_days %}{{ r.overdue_days }}d overdue{% else %}{{ r.days_to_pack_by }}d remaining{% endif %}</span>{% endif %}</div>
-      <div><span class="metric-label">Last check</span><span class="metric-value">{% if r.sample %}{{ r.days_since_sample }}d ago{% else %}Never{% endif %}</span></div>
-      <div><span class="metric-label">Risk</span><span class="metric-value">{% if r.pred and r.pred.decay_flag %}{{ r.pred.decay_pct|floatformat:1 }}% observed decay{% else %}No decay flag{% endif %}</span></div>
+      <div><span class="metric-label">{% trans "Inventory" %}</span><span class="metric-value">{% if r.lot.bins_remaining is not None %}{{ r.lot.bins_remaining|floatformat:0 }} {% trans "bins" %}{% else %}{% trans "Unknown" %}{% endif %}</span><span class="muted small">{{ r.lot.current_room|default:_('No room') }}</span></div>
+      <div><span class="metric-label">{% trans "Indicative pack date" %}</span><span class="metric-value">{% if r.dates_usable and r.pred.pack_by_date %}{{ r.pred.pack_by_date|date:'M j' }}{% else %}{% trans "Not available" %}{% endif %}</span>{% if r.dates_usable and r.pred.pack_by_date %}<span class="muted small {% if r.overdue_days %}flag red{% endif %}">{% if r.overdue_days %}{% blocktrans with d=r.overdue_days %}{{ d }}d overdue{% endblocktrans %}{% else %}{% blocktrans with d=r.days_to_pack_by %}{{ d }}d remaining{% endblocktrans %}{% endif %}</span>{% endif %}</div>
+      <div><span class="metric-label">{% trans "Last check" %}</span><span class="metric-value">{% if r.sample %}{% blocktrans with d=r.days_since_sample %}{{ d }}d ago{% endblocktrans %}{% else %}{% trans "Never" %}{% endif %}</span></div>
+      <div><span class="metric-label">{% trans "Risk" %}</span><span class="metric-value">{% if r.pred and r.pred.decay_flag %}{{ r.pred.decay_pct|floatformat:1 }}% {% trans "observed decay" %}{% else %}{% trans "No decay flag" %}{% endif %}</span>{% include 'lots/_warm_clock.html' %}</div>
     </div>
     {% include 'lots/_evidence_notes.html' %}<div class="toolbar" style="margin:.85rem 0 0">
-      {% if is_foreman and r.priority == 'Retake photo' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Retake photo</a>
-      {% elif is_foreman and r.priority == 'Sample due' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">Sample lot</a>{% endif %}
-      <a class="btn ghost" href="{% url 'lots:lot_detail' r.lot.pk %}">Open details</a>
+      {% if is_foreman and r.priority_code == 'retake_photo' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">{% trans "Retake photo" %}</a>
+      {% elif is_foreman and r.priority_code == 'sample_due' %}<a class="btn" href="{% url 'sampling:capture' r.lot.pk %}">{% trans "Sample lot" %}</a>{% endif %}
+      <a class="btn ghost" href="{% url 'lots:lot_detail' r.lot.pk %}">{% trans "Open details" %}</a>
     </div>
   </article>
   {% empty %}<div class="card">{% include 'lots/_board_empty.html' %}</div>{% endfor %}
 </div>
 
-<p class="muted small">Pack dates are planning guidance. Open a lot for CCI history, drift, photos, and the full audit trail.</p>
+<p class="muted small">{% trans "Pack dates are planning guidance. Open a lot for CCI history, drift, photos, and the full audit trail." %}</p>
 
 <details class="planning-details">
   <summary>Capacity outlook · next 8 weeks</summary><p class="muted small">Includes only lots with current measurement evidence and an available date. Excluded lots still occupy storage and packing capacity. This is not an order-constrained schedule.</p>
   <div class="table-wrap"><table>
     <thead><tr><th>Week</th><th>Lots due</th><th>Known bins</th><th>Unknown quantities</th><th>Plant capacity</th><th>Status</th></tr></thead>
     <tbody>{% for b in capacity_projection %}
-      <tr{% if b.over_capacity %} class="red"{% endif %}><td>{{ b.start|date:'M j' }}–{{ b.end|date:'M j' }}</td><td>{{ b.lots }}</td><td>{{ b.known_bins|floatformat:1 }}</td><td>{{ b.unknown_bins }} lot{{ b.unknown_bins|pluralize }}</td>
-        <td>{% if b.capacity is not None %}{{ b.capacity|floatformat:1 }} bins{% else %}<span class="muted">Not configured</span>{% endif %}</td>
+      <tr{% if b.over_capacity %} class="red"{% endif %}><td>{{ b.start|date:'M j' }}–{{ b.end|date:'M j' }}</td><td>{{ b.lots }}</td><td>{{ b.known_bins|floatformat:0 }}</td><td>{{ b.unknown_bins }} lot{{ b.unknown_bins|pluralize }}</td>
+        <td>{% if b.capacity is not None %}{{ b.capacity|floatformat:0 }} bins{% else %}<span class="muted">Not configured</span>{% endif %}</td>
         <td>{% if b.over_capacity %}<span class="flag red">Over capacity</span>{% elif b.capacity is not None %}<span class="flag ok">Within capacity</span>{% else %}—{% endif %}</td></tr>
     {% endfor %}</tbody>
   </table></div>

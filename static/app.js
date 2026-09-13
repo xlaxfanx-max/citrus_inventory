@@ -46,3 +46,8 @@ document.querySelectorAll('.table-wrap').forEach(wrapper => {
       (heading?.matches('h2, h3') ? heading.textContent : 'Data table'));
   }
 });
+
+// Any select inside a form marked data-autosubmit submits the form on change.
+document.querySelectorAll('form[data-autosubmit] select').forEach(select => {
+  select.addEventListener('change', () => select.form.requestSubmit());
+});

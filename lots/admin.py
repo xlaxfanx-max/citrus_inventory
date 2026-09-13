@@ -9,15 +9,26 @@ from .models import (
     ModelSettings,
     Packout,
     Plant,
+    PlantReportRecipient,
     Room,
     RoomCondition,
     UserProfile,
 )
 
 
+class PlantReportRecipientInline(admin.TabularInline):
+    model = PlantReportRecipient
+    extra = 0
+
+
 @admin.register(Plant)
 class PlantAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'city', 'report_recipients']
+    list_display = ['code', 'name', 'city', 'recipients']
+    inlines = [PlantReportRecipientInline]
+
+    @admin.display(description='Report recipients')
+    def recipients(self, obj):
+        return ', '.join(obj.recipient_list)
 
 
 @admin.register(Room)
@@ -71,7 +82,7 @@ class LotAdmin(admin.ModelAdmin):
 
 @admin.register(LotRoomMove)
 class LotRoomMoveAdmin(admin.ModelAdmin):
-    list_display = ['lot', 'room', 'moved_at', 'moved_by']
+    list_display = ['lot', 'room', 'moved_on', 'moved_by']
     list_filter = ['room__plant']
     search_fields = ['lot__lot_no']
 

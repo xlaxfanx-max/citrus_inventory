@@ -6,16 +6,22 @@ from unittest.mock import patch
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import connection
+from decimal import Decimal
+
+from django.db import IntegrityError, connection, transaction
+from django.db.models import ProtectedError
 from django.test import Client, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
+from forecast.model import MODEL_VERSION
 from .importers import conditions, packout, receiving, room_moves, run_import, treatments
 from .importers.base import read_csv
+from .forms import PlantSettingsForm
+from .planning import board_rows
 from .models import (
     Color, Grower, ImportBatch, Lot, LotRoomMove, LotTreatment, ModelSettings,
-    Packout, Plant, Room, RoomCondition, UserProfile,
+    Packout, Plant, PlantReportRecipient, Room, RoomCondition, UserProfile,
 )
 
 
@@ -31,6 +37,7 @@ def make_user(username, group=None, plant=None, staff=False):
     return user
 
 
+@override_settings(FOREMAN_DEFAULT_LANGUAGE='en')
 class Base(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -250,7 +257,7 @@ class PredictionDataImportTests(Base):
         self.lot = self.make_lot(
             '26-V2', receive_date=date(2026, 8, 1), current_room=self.room
         )
-        LotRoomMove.objects.create(lot=self.lot, room=self.room, moved_at=date(2026, 8, 1))
+        LotRoomMove.objects.create(lot=self.lot, room=self.room, moved_on=date(2026, 8, 1))
 
     def test_room_conditions_are_idempotent_and_update_values(self):
         header = ','.join(conditions.COLUMNS)
@@ -473,7 +480,7 @@ class ViewAccessTests(Base):
             decay_rate=.12,
             decay_flag=True,
             confidence='med',
-            model_version='v1.1-linear-cci',
+            model_version=MODEL_VERSION,
             inputs={'points': [[(date.today()-urgent.receive_date).days-7, 0.3], [(date.today()-urgent.receive_date).days, 1.0]]},
         )
         self.client.force_login(self.gm)
@@ -501,7 +508,8 @@ class ViewAccessTests(Base):
         post = {f: getattr(self.settings, f) for f in [
             'cci_dg_max', 'cci_lg_max', 'cci_s_max', 'prior_drift_dg', 'prior_drift_lg', 'prior_drift_s', 'prior_drift_y',
             'start_cci_dg', 'start_cci_lg', 'start_cci_s', 'start_cci_y', 'buffer_days', 'decay_flag_pct',
-            'min_fruit_for_score', 'max_horizon_days', 'sample_overdue_days', 'import_gap_days']}
+            'min_fruit_for_score', 'max_horizon_days', 'sample_overdue_days', 'import_gap_days',
+            'sample_fruit_count', 'warm_storage_temp_c', 'warm_weeks_flag', 'temperature_response', 'color_correction_method']}
         post['buffer_days'] = 10
         post.update({'plants-TOTAL_FORMS': '2', 'plants-INITIAL_FORMS': '2', 'plants-MIN_NUM_FORMS': '0', 'plants-MAX_NUM_FORMS': '1000',
                      'plants-0-id': self.sla1.pk, 'plants-0-report_recipients': 'gm@example.com',
@@ -546,3 +554,172 @@ class ViewAccessTests(Base):
         resp = self.client.get(reverse('lots:lot_detail', args=[lot.pk]))
         self.assertContains(resp, '<svg')
         self.assertContains(resp, 'No scored samples yet')
+
+
+@override_settings(FOREMAN_DEFAULT_LANGUAGE='es')
+class LanguageTests(Base):
+    def setUp(self):
+        self.foreman = make_user('foreman_es', 'foreman', self.sla1)
+        self.gm = make_user('gm_en', 'gm')
+
+    def test_foreman_defaults_to_spanish_until_they_choose(self):
+        self.client.force_login(self.foreman)
+        resp = self.client.get(reverse('sampling:picker'))
+        self.assertContains(resp, 'Ruta de muestreo de hoy')
+        self.assertContains(resp, 'lang="es"')
+        self.client.cookies['django_language'] = 'en'
+        resp = self.client.get(reverse('sampling:picker'))
+        self.assertContains(resp, 'Today’s sample route')
+
+    def test_gm_stays_in_english_by_default(self):
+        self.client.force_login(self.gm)
+        resp = self.client.get(reverse('lots:board'))
+        self.assertContains(resp, 'Packing plan')
+        self.assertNotContains(resp, 'Plan de empaque')
+
+    def test_language_toggle_sets_cookie(self):
+        self.client.force_login(self.gm)
+        resp = self.client.post(reverse('set_language'), {'language': 'es', 'next': '/'})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.cookies['django_language'].value, 'es')
+        self.assertContains(self.client.get(reverse('lots:board')), 'Plan de empaque')
+
+
+class WarmStorageClockTests(Base):
+    def test_warm_clock_counts_only_rooms_at_or_above_threshold(self):
+        from forecast.features import warm_exposure
+        warm = Room.objects.create(plant=self.sla1, name='Warm', target_temp_f=56)   # 13.3 C
+        cool = Room.objects.create(plant=self.sla1, name='Cool', target_temp_f=50)   # 10 C
+        unset = Room.objects.create(plant=self.sla1, name='Unset')
+        lot = self.make_lot(receive_date=date.today() - timedelta(days=70), current_room=warm)
+        LotRoomMove.objects.create(lot=lot, room=warm, moved_on=lot.receive_date)
+        LotRoomMove.objects.create(lot=lot, room=cool, moved_on=lot.receive_date + timedelta(days=21))
+        LotRoomMove.objects.create(lot=lot, room=unset, moved_on=lot.receive_date + timedelta(days=28))
+        LotRoomMove.objects.create(lot=lot, room=warm, moved_on=lot.receive_date + timedelta(days=35))
+        result = warm_exposure(lot, date.today(), self.settings)
+        self.assertEqual(result['warm_days'], 21 + 36)
+        self.assertEqual(result['cool_days'], 7)
+        self.assertEqual(result['unknown_days'], 7)
+        self.assertTrue(result['flag'])
+        self.assertTrue(result['has_history'])
+        rows = board_rows([Lot.objects.prefetch_related('room_moves__room').get(pk=lot.pk)], date.today(), self.settings)
+        self.assertTrue(rows[0]['warm_flag'])
+        self.assertEqual(rows[0]['warm_weeks'], round(57 / 7, 1))
+
+    def test_no_room_history_means_no_clock(self):
+        from forecast.features import warm_exposure
+        lot = self.make_lot()
+        result = warm_exposure(lot, date.today(), self.settings)
+        self.assertFalse(result['has_history'])
+        self.assertFalse(result['flag'])
+
+
+class LotDetailAndPackoutQualityTests(Base):
+    def setUp(self):
+        self.gm = make_user('gm_q', 'gm')
+        self.foreman = make_user('foreman_q', 'foreman', self.sla1)
+
+    def test_lot_detail_shows_overdue_days_in_red_tile(self):
+        from forecast.models import Prediction
+        lot = self.make_lot(receive_date=date.today() - timedelta(days=100), bins_received=120)
+        Prediction.objects.create(lot=lot, as_of_date=date.today(), cci_now=5.0, stage=Color.YELLOW, drift_per_day=.2,
+            predicted_yellow_date=date.today() - timedelta(days=5), pack_by_date=date.today() - timedelta(days=12),
+            confidence='high', model_version=MODEL_VERSION, inputs={'points': [[80, 1.0], [90, 3.0]]})
+        self.client.force_login(self.gm)
+        resp = self.client.get(reverse('lots:lot_detail', args=[lot.pk]))
+        self.assertContains(resp, '12 days overdue')
+        self.assertContains(resp, 'tile red')
+        self.assertContains(resp, '>120<')  # whole bins, no decimal
+        self.assertNotContains(resp, '120.0')
+
+    def test_gm_records_packout_quality_labels_and_foreman_cannot(self):
+        lot = self.make_lot(bins_received=100)
+        packout = Packout.objects.create(lot=lot, packed_date=date.today(), cartons_fancy=100, cartons_products=20, bins_packed=40, is_final=False)
+        url = reverse('lots:packout_quality', args=[lot.pk, packout.pk])
+        self.client.force_login(self.foreman)
+        self.assertEqual(self.client.post(url, {}).status_code, 403)
+        self.client.force_login(self.gm)
+        resp = self.client.post(url, {
+            f'po{packout.pk}-packout_color': 'Y', f'po{packout.pk}-decay_pct': '3.5',
+            f'po{packout.pk}-meets_spec': 'false', f'po{packout.pk}-downgrade_reason': 'Color',
+        })
+        self.assertEqual(resp.status_code, 302)
+        packout.refresh_from_db()
+        self.assertEqual((packout.packout_color, float(packout.decay_pct), packout.meets_spec, packout.downgrade_reason), ('Y', 3.5, False, 'Color'))
+        self.assertEqual(packout.cartons_fancy, 100)  # counts untouched
+        resp = self.client.get(reverse('lots:lot_detail', args=[lot.pk]))
+        self.assertContains(resp, 'Edit quality labels')
+        self.assertContains(resp, 'decay 3.50%')
+
+    def test_board_uses_whole_bins_and_no_chip_row(self):
+        self.make_lot(bins_received=150)
+        self.client.force_login(self.gm)
+        resp = self.client.get(reverse('lots:board'), {'plant': 'SLA1'})
+        self.assertContains(resp, '150 bins')
+        self.assertNotContains(resp, '150.0 bins')
+        self.assertNotContains(resp, 'class="filters"')
+        self.assertContains(resp, 'aria-current="page" href="?plant=SLA1&amp;attention=all"')
+
+
+class DatabaseRuleTests(Base):
+    """Rules the database enforces on its own, without going through clean()."""
+
+    def test_harvest_after_receipt_rejected_by_check_constraint(self):
+        lot = self.make_lot(receive_date=date(2026, 8, 1))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Lot.objects.filter(pk=lot.pk).update(harvest_date=date(2026, 8, 2))
+
+    def test_user_with_history_is_protected_not_deleted(self):
+        user = make_user('mover', 'foreman', self.sla1)
+        lot = self.make_lot()
+        room = Room.objects.create(plant=self.sla1, name='Cold 1')
+        LotRoomMove.objects.create(lot=lot, room=room, moved_on=lot.receive_date, moved_by=user)
+        with self.assertRaises(ProtectedError):
+            user.delete()
+        user.is_active = False
+        user.save()
+        self.assertEqual(LotRoomMove.objects.get().moved_by, user)
+
+    def test_lot_dependents_block_a_hard_delete(self):
+        lot = self.make_lot()
+        Packout.objects.create(lot=lot, packed_date=lot.receive_date, cartons_fancy=1, is_final=False)
+        with self.assertRaises(ProtectedError):
+            Lot.objects.filter(pk=lot.pk).hard_delete()
+
+    def test_report_recipients_are_atomic_rows(self):
+        self.sla1.set_recipients(['gm@example.com', ' gm@example.com ', 'foreman@example.com'])
+        self.assertEqual(self.sla1.recipient_list, ['foreman@example.com', 'gm@example.com'])
+        self.sla1.set_recipients(['gm@example.com'])
+        self.assertEqual(self.sla1.recipient_list, ['gm@example.com'])
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            PlantReportRecipient.objects.create(plant=self.sla1, email='gm@example.com')
+
+    def test_settings_form_validates_each_recipient(self):
+        form = PlantSettingsForm({'report_recipients': 'gm@example.com, not-an-email', 'weekly_pack_capacity_bins': ''}, instance=self.sla1)
+        self.assertFalse(form.is_valid())
+        self.assertIn('not-an-email', form.errors['report_recipients'][0])
+
+    def test_packout_totals_are_generated_by_the_database(self):
+        lot = self.make_lot()
+        po = Packout.objects.create(
+            lot=lot, packed_date=lot.receive_date, cartons_fancy=1, cartons_choice=1,
+            cartons_standard=1, cartons_products=1, is_final=False,
+        )
+        self.assertEqual((po.cartons_total, float(po.fresh_pct)), (4, 75.0))
+        Packout.objects.filter(pk=po.pk).update(cartons_products=0)  # bypasses save(); the database still recomputes
+        po.refresh_from_db()
+        self.assertEqual((po.cartons_total, float(po.fresh_pct)), (3, 100.0))
+        Packout.objects.filter(pk=po.pk).update(cartons_fancy=0, cartons_choice=0, cartons_standard=0)
+        po.refresh_from_db()
+        self.assertEqual((po.cartons_total, po.fresh_pct), (0, None))
+
+    def test_bin_balance_annotation_matches_python_property(self):
+        lot = self.make_lot(bins_received=100)
+        Packout.objects.create(lot=lot, packed_date=lot.receive_date, cartons_fancy=1, bins_packed=Decimal('30.5'), is_final=False)
+        Packout.objects.create(lot=lot, packed_date=lot.receive_date + timedelta(days=1), cartons_fancy=1, bins_packed=Decimal('10'), is_final=False)
+        annotated = Lot.objects.with_bin_balance().get(pk=lot.pk)
+        self.assertEqual(annotated.bins_remaining, Decimal('59.5'))
+        self.assertEqual(annotated.bins_remaining, Lot.objects.get(pk=lot.pk).bins_remaining)
+        Packout.objects.create(lot=lot, packed_date=lot.receive_date + timedelta(days=2), cartons_fancy=1, bins_packed=None, is_final=False)
+        self.assertIsNone(Lot.objects.with_bin_balance().get(pk=lot.pk).bins_remaining)
+        self.assertIsNone(Lot.objects.get(pk=lot.pk).bins_remaining)

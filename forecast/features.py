@@ -21,10 +21,14 @@ def room_exposure_intervals(lot, as_of):
     end_day = min(as_of, lot.packed_date) if lot.packed_date else as_of
     if end_day < lot.receive_date:
         return []
-    moves = sorted(
-        lot.room_moves.filter(moved_at__lte=end_day)
-        .select_related('room'), key=lambda move: (move.effective_at, move.pk)
-    )
+    # Use the prefetched moves when the caller loaded them (the board does),
+    # otherwise one query per lot.
+    prefetched = getattr(lot, '_prefetched_objects_cache', {}).get('room_moves')
+    if prefetched is not None:
+        candidates = [move for move in prefetched if move.moved_on <= end_day]
+    else:
+        candidates = lot.room_moves.filter(moved_on__lte=end_day).select_related('room')
+    moves = sorted(candidates, key=lambda move: (move.effective_at, move.pk))
     intervals = []
     active_room = None
     active_start = _aware_start(lot.receive_date)
@@ -71,6 +75,10 @@ def environment_features(lot, as_of):
             'room': room.name,
             'start': start_day.isoformat(),
             'end_exclusive': end_day.isoformat(),
+            # ISO strings, not dates: this dict is stored in Prediction.inputs (JSON).
+            'start_day': timezone.localtime(start_day).date().isoformat(),
+            'last_day': (timezone.localtime(end_day) - timedelta(seconds=1)).date().isoformat(),
+            'setpoint_c': room.setpoint_c,
             'days': (end_day - start_day).total_seconds() / 86400,
             'reading_count': agg['n'],
         })
@@ -86,8 +94,41 @@ def environment_features(lot, as_of):
         'reading_count': reading_count,
         'observed_days': observed_days,
         'day_coverage_pct': round(100 * observed_days / calendar_days, 1) if calendar_days else 0.0,
-        'date_only_move_count': lot.room_moves.filter(moved_at__lte=as_of, occurred_at__isnull=True).count(),
+        'date_only_move_count': lot.room_moves.filter(moved_on__lte=as_of, occurred_at__isnull=True).count(),
         **{field: _combine(parts[field]) for field in MEASURES},
+    }
+
+
+def warm_exposure(lot, as_of, settings):
+    """The rot-risk clock: days the lot has spent in rooms whose setpoint is at
+    or above settings.warm_storage_temp_c, from the auditable room history.
+
+    Lemons hold 4-6 months near 10 C but only 1-2 months at 13 C, with high
+    rot after about three months warm (UC Davis / trade storage guidance), so
+    weeks spent warm are tracked separately from peel color. Rooms with no
+    recorded setpoint contribute to `unknown_days`, never to the clock.
+    """
+    threshold = float(settings.warm_storage_temp_c)
+    warm_days = unknown_days = cool_days = 0.0
+    for room, start, end in room_exposure_intervals(lot, as_of):
+        days = (end - start).total_seconds() / 86400
+        setpoint = room.setpoint_c
+        if setpoint is None:
+            unknown_days += days
+        elif setpoint >= threshold:
+            warm_days += days
+        else:
+            cool_days += days
+    weeks = round(warm_days / 7, 1)
+    return {
+        'threshold_c': threshold,
+        'warm_days': round(warm_days, 1),
+        'cool_days': round(cool_days, 1),
+        'unknown_days': round(unknown_days, 1),
+        'weeks': weeks,
+        'flag': weeks >= settings.warm_weeks_flag,
+        'flag_weeks': settings.warm_weeks_flag,
+        'has_history': bool(warm_days or cool_days or unknown_days),
     }
 
 

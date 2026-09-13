@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Sample {{ sample.lot.lot_no }}{% endblock %}
+{% load i18n %}
+{% block title %}{% blocktrans with lot=sample.lot.lot_no %}Sample {{ lot }}{% endblocktrans %}{% endblock %}
 {% block head %}{% if waiting %}<meta http-equiv="refresh" content="4">{% endif %}
 <style>
   .status-shell { max-width: 720px; margin: 0 auto; }
@@ -9,34 +10,34 @@
 </style>{% endblock %}
 {% block content %}
 <div class="status-shell">
-<p class="eyebrow">Lot {{ sample.lot.lot_no }} · {{ sample.lot.grower.name }}</p>
-<h1 class="screen-title">Sample saved</h1>
-<p class="lede">{{ sample.get_foreman_color_display }} · pack within {{ sample.foreman_pack_within_weeks }} wk · decay {{ sample.decay_count }}/{{ sample.fruit_count }}</p>
+<p class="eyebrow">{% trans "Lot" %} {{ sample.lot.lot_no }} · {{ sample.lot.grower.name }}</p>
+<h1 class="screen-title">{% trans "Sample saved" %}</h1>
+<p class="lede">{{ sample.get_foreman_color_display }} · {{ sample.foreman_pack_label }} · {% trans "decay" %} {{ sample.decay_count }}/{{ sample.fruit_count }}{% if sample.capture_seconds %} · {% blocktrans with s=sample.capture_seconds %}{{ s }} s{% endblocktrans %}{% endif %}</p>
 
 {% if waiting %}
-  <div class="card status-hero" style="margin-top:1rem"><span class="flag grey">Checking photo…</span><h2 style="margin:.55rem 0 .2rem">Keep the route moving</h2><span class="muted">This page updates automatically. You do not need to wait before starting the next lot.</span></div>
+  <div class="card status-hero" style="margin-top:1rem"><span class="flag grey">{% trans "Checking photo…" %}</span><h2 style="margin:.55rem 0 .2rem">{% trans "Keep the route moving" %}</h2><span class="muted">{% trans "This page updates automatically. You do not need to wait before starting the next lot." %}</span></div>
 {% elif usable %}
-  <div class="card status-hero" style="margin-top:1rem"><span class="flag ok">Photo accepted</span><h2 style="margin:.55rem 0 .2rem">Measurement recorded</h2>
-    {% for p in usable %}<p class="muted" style="margin:.3rem 0 0">Photo {{ forloop.counter }}: {{ p.fruit_detected }} fruit measured.</p>{% endfor %}
+  <div class="card status-hero" style="margin-top:1rem"><span class="flag ok">{% trans "Photo accepted" %}</span><h2 style="margin:.55rem 0 .2rem">{% trans "Measurement recorded" %}</h2>
+    {% for p in usable %}<p class="muted" style="margin:.3rem 0 0">{% blocktrans with i=forloop.counter n=p.fruit_detected %}Photo {{ i }}: {{ n }} fruit measured.{% endblocktrans %}</p>{% endfor %}
   </div>
 {% else %}
-  <div class="card status-hero problem" style="margin-top:1rem"><span class="flag red">Photo needs a retake</span><h2 style="margin:.55rem 0 .2rem">Retake before returning the fruit</h2>
+  <div class="card status-hero problem" style="margin-top:1rem"><span class="flag red">{% trans "Photo needs a retake" %}</span><h2 style="margin:.55rem 0 .2rem">{% trans "Retake before returning the fruit" %}</h2>
     {% for p in failed %}<p>{{ p.error }}</p>{% endfor %}
     {% for p in low_quality %}{% for warning in p.quality_warnings %}<p>{{ warning }}</p>{% endfor %}{% endfor %}
-    <a class="btn big" href="{% url 'sampling:capture' sample.lot.pk %}">Retake lot {{ sample.lot.lot_no }}</a>
+    <a class="btn big" href="{% url 'sampling:capture' sample.lot.pk %}">{% blocktrans with lot=sample.lot.lot_no %}Retake lot {{ lot }}{% endblocktrans %}</a>
   </div>
 {% endif %}
 
 {% if waiting or usable %}
   <div class="next-action">
-  {% if next_row %}<a class="btn big" href="{% url 'sampling:capture' next_row.lot.pk %}">Next: lot {{ next_row.lot.lot_no }} →</a><p class="muted small" style="text-align:center">{{ next_row.lot.grower.name }} · {{ next_row.lot.current_room|default:'No room' }}</p>
-  {% else %}<a class="btn big" href="{% url 'sampling:picker' %}">Route complete · view summary</a>{% endif %}
+  {% if next_row %}<a class="btn big" href="{% url 'sampling:capture' next_row.lot.pk %}">{% blocktrans with lot=next_row.lot.lot_no %}Next: lot {{ lot }} →{% endblocktrans %}</a><p class="muted small" style="text-align:center">{{ next_row.lot.grower.name }} · {{ next_row.lot.current_room|default:_('No room') }}</p>
+  {% else %}<a class="btn big" href="{% url 'sampling:picker' %}">{% trans "Route complete · view summary" %}</a>{% endif %}
   </div>
 {% endif %}
 
 <p class="toolbar" style="justify-content:center">
-  {% if not waiting and not usable %}<a class="btn soft" href="{% url 'sampling:picker' %}">Skip for now</a>{% endif %}
-  <a class="btn ghost" href="{% url 'lots:lot_detail' sample.lot.pk %}">Open lot history</a>
+  {% if not waiting and not usable %}<a class="btn soft" href="{% url 'sampling:picker' %}">{% trans "Skip for now" %}</a>{% endif %}
+  <a class="btn ghost" href="{% url 'lots:lot_detail' sample.lot.pk %}">{% trans "Open lot history" %}</a>
 </p>
 </div>
 {% endblock %}

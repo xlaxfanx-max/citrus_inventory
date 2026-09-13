@@ -5,6 +5,7 @@ from django.db.models import Prefetch, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from lots.models import Lot, ModelSettings, plant_for
 from lots.roles import ADMIN, FOREMAN, GM, group_required, resolve_plant
@@ -98,13 +99,15 @@ def capture(request, lot_id):
     if pinned is not None and lot.plant_id != pinned.id:
         raise Http404
     if lot.status == Lot.Status.DUMPED:
-        messages.error(request, f'Lot {lot.lot_no} is {lot.get_status_display().lower()}; it cannot be sampled.')
+        messages.error(request, _('Lot %(lot)s was dumped; it cannot be sampled.') % {'lot': lot.lot_no})
         return redirect('sampling:picker')
 
+    settings = ModelSettings.get()
+    form_kwargs = {'plant': lot.plant, 'fruit_count': settings.sample_fruit_count}
     if request.method == 'POST':
-        form = CaptureForm(request.POST, request.FILES, plant=lot.plant)
+        form = CaptureForm(request.POST, request.FILES, **form_kwargs)
         if lot.status == Lot.Status.PACKED and not request.POST.get('is_holdout'):
-            form.add_error(None, 'After final packing, only shelf-life holdout assessments may be recorded.')
+            form.add_error(None, _('After final packing, only shelf-life holdout assessments may be recorded.'))
         if form.is_valid():
             data = form.cleaned_data
             sample = Sample.objects.create(
@@ -113,7 +116,8 @@ def capture(request, lot_id):
                 foreman_color=data['foreman_color'],
                 foreman_pack_within_weeks=data['foreman_pack_within_weeks'],
                 decay_count=data['decay_count'],
-                fruit_count=10,
+                fruit_count=data.get('fruit_count') or settings.sample_fruit_count,
+                capture_seconds=_capture_seconds(data.get('opened_at')),
                 # A legacy or API-style POST that omits this field must not be
                 # counted as representative sampling on the readiness dashboard.
                 selection_method=data.get('selection_method') or Sample.SelectionMethod.UNKNOWN,
@@ -128,17 +132,31 @@ def capture(request, lot_id):
                 failure_reason=data.get('failure_reason') or '',
                 notes=data.get('notes', ''),
             )
+            device_info = request.META.get('HTTP_USER_AGENT', '')[:200]
             for f in (data['photo'], data.get('photo2')):
                 if f:
                     calibration = data.get('calibration')
-                    SamplePhoto.objects.create(sample=sample, image=f,
+                    SamplePhoto.objects.create(sample=sample, image=f, device_info=device_info,
                         calibration_snapshot=calibration.snapshot() if calibration else {})
-            messages.success(request, f'Lot {lot.lot_no} saved. Scoring in the background.')
+            messages.success(request, _('Lot %(lot)s saved. Scoring in the background.') % {'lot': lot.lot_no})
             return redirect('sampling:sample_status', pk=sample.pk)
     else:
-        form = CaptureForm(plant=lot.plant, initial={'is_holdout': lot.status == Lot.Status.PACKED})
+        form = CaptureForm(initial={'is_holdout': lot.status == Lot.Status.PACKED, 'opened_at': int(timezone.now().timestamp())}, **form_kwargs)
     last = lot.samples.filter(is_void=False, purpose=Sample.Purpose.ROUTINE).order_by('-sampled_at').first()
-    return render(request, 'sampling/capture.html', {'lot': lot, 'form': form, 'last': last})
+    return render(request, 'sampling/capture.html', {
+        'lot': lot, 'form': form, 'last': last,
+        'fruit_count': form.base_fruit_count, 'double_count': form.double_fruit_count,
+        'decay_flag_pct': settings.decay_flag_pct,
+    })
+
+
+def _capture_seconds(opened_at):
+    """Seconds between opening the capture screen and saving, or None when the
+    hidden timestamp is missing or implausible (clock skew, page left open)."""
+    if not opened_at:
+        return None
+    elapsed = int(timezone.now().timestamp()) - int(opened_at)
+    return elapsed if 0 <= elapsed <= 4 * 3600 else None
 
 
 @group_required(FOREMAN, GM, ADMIN)

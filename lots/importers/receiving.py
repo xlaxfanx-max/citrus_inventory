@@ -204,10 +204,10 @@ def run(rows, batch=None):
     if moves:
         # bulk_create above assigned pks on the new lots (SQLite/Postgres both return ids).
         # Every receiving-file move is dated receive_date, so a lot that returns to a
-        # room it was in before would collide on (lot, room, moved_at); the existing
+        # room it was in before would collide on (lot, room, moved_on); the existing
         # move already records that room, so the duplicate is simply skipped.
         LotRoomMove.objects.bulk_create(
-            [LotRoomMove(lot=lot, room=room, moved_at=when) for lot, room, when in moves],
+            [LotRoomMove(lot=lot, room=room, moved_on=when) for lot, room, when in moves],
             ignore_conflicts=True,
         )
     return len(usable) - rejected, errors

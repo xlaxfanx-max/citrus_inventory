@@ -4,19 +4,20 @@ from django.contrib import messages
 from django.db.models import Prefetch, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from forecast.chart import cci_chart_svg
-from forecast.features import environment_features
-from forecast.models import Prediction
+from forecast.features import environment_features, warm_exposure
+from forecast.models import MarketRegime, Prediction
 from forecast.plans import current_decisions, lot_decision_history
 from sampling.models import Sample
 
-from .forms import ImportForm, ModelSettingsForm, PlantRecipientsFormSet
+from .forms import ImportForm, ModelSettingsForm, PackoutQualityForm, PlantRecipientsFormSet
 from .importers import IMPORTERS, blank_template, run_import
-from .models import ImportBatch, Lot, ModelSettings, Room, plant_for
+from .models import ImportBatch, Lot, ModelSettings, Packout, Room, plant_for
 from .planning import board_rows, capacity_projection, plan_lots
-from .roles import ADMIN, FOREMAN, GM, group_required, resolve_plant
+from .roles import ADMIN, FOREMAN, GM, group_required, is_gm, resolve_plant
 
 
 @group_required(FOREMAN, GM, ADMIN)
@@ -99,12 +100,13 @@ def board(request):
         'plan': plan,
         'plan_undecided': sum(1 for r in all_rows if r['requires_decision'] and r['decision'] is None) if plan else None,
         'plan_actionable': sum(1 for r in all_rows if r['requires_decision']),
+        'market_regimes': MarketRegime.choices,
     }
     return render(request, 'lots/board.html', context)
 
 
 @group_required(FOREMAN, GM, ADMIN)
-def lot_detail(request, pk):
+def lot_detail(request, pk, packout_form=None):
     lot = get_object_or_404(
         Lot.objects.select_related('grower', 'plant', 'current_room').prefetch_related(
             'room_moves__room',
@@ -134,6 +136,17 @@ def lot_detail(request, pk):
     today = timezone.localdate()
     plan_row = board_rows([lot], today, settings)[0] if lot.status == Lot.Status.IN_STORAGE else None
     environment = environment_features(lot, today)
+    overdue_days = days_to_pack_by = None
+    if latest and latest.pack_by_date and lot.status == Lot.Status.IN_STORAGE:
+        days_to_pack_by = (latest.pack_by_date - today).days
+        if days_to_pack_by < 0:
+            overdue_days, days_to_pack_by = -days_to_pack_by, None
+    packout_forms = {}
+    if is_gm(request.user):
+        packout_forms = {
+            p.pk: (packout_form if packout_form is not None and packout_form.instance.pk == p.pk else PackoutQualityForm(instance=p, prefix=f'po{p.pk}'))
+            for p in lot.packouts.all()
+        }
     context = {
         'lot': lot,
         'samples': samples,
@@ -145,9 +158,31 @@ def lot_detail(request, pk):
         'today': today,
         'plan_row': plan_row,
         'environment': environment,
+        'warm': warm_exposure(lot, today, settings),
+        'overdue_days': overdue_days,
+        'days_to_pack_by': days_to_pack_by,
+        'packout_forms': packout_forms,
         'plan_history': list(lot_decision_history(lot)),
     }
-    return render(request, 'lots/lot_detail.html', context)
+    return render(request, 'lots/lot_detail.html', context, status=400 if packout_form is not None and packout_form.errors else 200)
+
+
+@group_required(GM, ADMIN)
+def packout_quality(request, pk, packout_pk):
+    """QC records observed color, decay and specification result for one
+    packout run. Carton counts stay with the import."""
+    packout = get_object_or_404(Packout.objects.select_related('lot'), pk=packout_pk, lot_id=pk)
+    pinned = plant_for(request.user)
+    if pinned is not None and packout.lot.plant_id != pinned.id:
+        raise Http404
+    if request.method != 'POST':
+        return redirect('lots:lot_detail', pk=pk)
+    form = PackoutQualityForm(request.POST, instance=packout, prefix=f'po{packout.pk}')
+    if form.is_valid():
+        form.save()
+        messages.success(request, f'Quality labels saved for the {packout.packed_date:%b %d} packout of lot {packout.lot.lot_no}.')
+        return redirect(f"{reverse('lots:lot_detail', args=[pk])}#packout")
+    return lot_detail(request, pk, packout_form=form)
 
 
 @group_required(GM, ADMIN)

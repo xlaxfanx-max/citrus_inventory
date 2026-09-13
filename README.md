@@ -10,6 +10,8 @@ Tracks color and quality per lemon lot, reconstructs room and treatment exposure
 - Prediction V2 data and validation protocol: [docs/prediction-v2-data-protocol.md](docs/prediction-v2-data-protocol.md)
 - Production deployment runbook: [docs/production-deployment.md](docs/production-deployment.md)
 - Hardware per plant: [hardware/README.md](hardware/README.md), print file `hardware/board.svg`
+- Entity-relationship diagram and delete rules: [docs/erd.md](docs/erd.md)
+- Database design review: [docs/database-design-review-2026-09-13.md](docs/database-design-review-2026-09-13.md); PostgreSQL roles in `scripts/db_roles.sql`
 
 ## Run it locally
 
@@ -37,6 +39,12 @@ Tests:
 ```
 
 Collect static assets before testing: rendered pages use the production static-file manifest.
+
+Translations: foreman screens default to Spanish (`FOREMAN_DEFAULT_LANGUAGE`, see `.env.example`); the header toggle sets a cookie that overrides it. Strings live in `locale/es/LC_MESSAGES/django.po`. After editing it, compile without GNU gettext:
+
+```
+.venv\Scripts\python scripts\compile_messages.py
+```
 
 Health checks: `/healthz/` reports process liveness and `/readyz/` verifies database readiness.
 

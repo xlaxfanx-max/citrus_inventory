@@ -1,35 +1,36 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Sample route{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Sample route" %}{% endblock %}
 {% block head %}
 
 <script src="{% static 'sample-route.js' %}" defer></script>
 {% endblock %}
 {% block content %}
 <div class="toolbar spread page-heading" style="align-items:flex-start">
-  <div><p class="eyebrow">{{ plant.code }} · {{ today|date:'l, M j' }}</p><h1 class="screen-title">Today’s sample route</h1><p class="lede">Overdue and unsampled lots appear first.</p></div>
-  {% if plants %}<form method="get"><select name="plant" aria-label="Plant" onchange="this.form.submit()">{% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}</select><noscript><button class="btn" type="submit">Apply</button></noscript></form>{% endif %}
+  <div><p class="eyebrow">{{ plant.code }} · {{ today|date:'l, M j' }}</p><h1 class="screen-title">{% trans "Today’s sample route" %}</h1><p class="lede">{% trans "Overdue and unsampled lots appear first." %}</p></div>
+  {% if plants %}<form method="get"><select name="plant" aria-label="{% trans 'Plant' %}" onchange="this.form.submit()">{% for p in plants %}<option value="{{ p.code }}" {% if p == plant %}selected{% endif %}>{{ p.code }} · {{ p.name }}</option>{% endfor %}</select><noscript><button class="btn" type="submit">{% trans "Apply" %}</button></noscript></form>{% endif %}
 </div>
 
-<div class="route-progress" aria-label="Route progress">
-  <strong>{% if route_remaining %}{{ route_remaining }} check{{ route_remaining|pluralize }} left{% else %}Route complete{% endif %}</strong>
-  <span class="muted small">{{ route_done }} of {{ route_total }} done</span>
-  <progress aria-label="Sample route completion" value="{{ route_percent }}" max="100">{{ route_percent }}%</progress>
+<div class="route-progress" aria-label="{% trans 'Route progress' %}">
+  <strong>{% if route_remaining %}{% blocktrans count n=route_remaining %}{{ n }} check left{% plural %}{{ n }} checks left{% endblocktrans %}{% else %}{% trans "Route complete" %}{% endif %}</strong>
+  <span class="muted small">{% blocktrans with done=route_done total=route_total %}{{ done }} of {{ total }} done{% endblocktrans %}</span>
+  <progress aria-label="{% trans 'Sample route completion' %}" value="{{ route_percent }}" max="100">{{ route_percent }}%</progress>
 </div>
 
 {% if next_row %}
 <div class="next-lot">
-  <div><span class="eyebrow">Next lot</span><strong>Lot {{ next_row.lot.lot_no }}</strong><span class="muted">{{ next_row.lot.grower.name }} · {{ next_row.lot.current_room|default:'No room' }}{% if next_row.last %} · {{ next_row.days_since }}d since last check{% else %} · never sampled{% endif %}</span></div>
-  <a class="btn" href="{% url 'sampling:capture' next_row.lot.pk %}">Sample this lot</a>
+  <div><span class="eyebrow">{% trans "Next lot" %}</span><strong>{% trans "Lot" %} {{ next_row.lot.lot_no }}</strong><span class="muted">{{ next_row.lot.grower.name }} · {{ next_row.lot.current_room|default:_('No room') }}{% if next_row.last %} · {% blocktrans with d=next_row.days_since %}{{ d }}d since last check{% endblocktrans %}{% else %} · {% trans "never sampled" %}{% endif %}</span></div>
+  <a class="btn" href="{% url 'sampling:capture' next_row.lot.pk %}">{% trans "Sample this lot" %}</a>
 </div>
 {% else %}
-<div class="card"><span class="flag ok">Route complete</span> All currently due lots have been checked. Recently sampled inventory remains available below.</div>
+<div class="card"><span class="flag ok">{% trans "Route complete" %}</span> {% trans "All currently due lots have been checked. Recently sampled inventory remains available below." %}</div>
 {% endif %}
 
-<form method="get" action="{% url 'sampling:picker' %}" id="lot-search-form" class="filter-bar" role="search" aria-label="Find a lot">
+<form method="get" action="{% url 'sampling:picker' %}" id="lot-search-form" class="filter-bar" role="search" aria-label="{% trans 'Find a lot' %}">
   {% if plant %}<input type="hidden" name="plant" value="{{ plant.code }}">{% endif %}
-  <div class="grow"><label for="lot-search">Find a different lot</label><input class="search" id="lot-search" type="search" name="q" value="{{ query }}" placeholder="Lot, grower, block, or room" autocomplete="off" aria-controls="lots"></div>
-  <button class="btn ghost" type="submit">Search</button>
+  <div class="grow"><label for="lot-search">{% trans "Find a different lot" %}</label><input class="search" id="lot-search" type="search" name="q" value="{{ query }}" placeholder="{% trans 'Lot, grower, block, or room' %}" autocomplete="off" aria-controls="lots"></div>
+  <button class="btn ghost" type="submit">{% trans "Search" %}</button>
 </form>
 <p id="search-status" class="muted small" role="status" aria-live="polite"></p>
 <div id="lots" aria-busy="false">{% include 'sampling/_lot_list.html' %}</div>

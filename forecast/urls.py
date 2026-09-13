@@ -12,5 +12,7 @@ urlpatterns = [
     path('plans/<int:pk>/', views.plan_detail, name='plan_detail'),
     path('plans/<int:pk>/lock/', views.plan_lock, name='plan_lock'),
     path('plans/<int:pk>/decide/<int:rec_pk>/', views.plan_decide, name='plan_decide'),
+    path('plans/<int:pk>/accept-remaining/', views.plan_accept_remaining, name='plan_accept_remaining'),
+    path('plans/<int:pk>/market/', views.plan_market, name='plan_market'),
     path('plans/publish/<str:code>/', views.plan_publish, name='plan_publish'),
 ]

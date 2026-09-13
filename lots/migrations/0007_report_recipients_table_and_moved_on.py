@@ -1,6 +1,11 @@
 """Normalize the plant's comma-separated report recipients into their own
 table (first normal form) and rename LotRoomMove.moved_at, which is a date,
-to moved_on so that the `_at` suffix is reserved for timestamps."""
+to moved_on so that the `_at` suffix is reserved for timestamps.
+
+The new table is created under a temporary related name because, while the
+old text column still exists, a reverse accessor called `report_recipients`
+would clash with it on every Plant instance loaded by the data copy. The
+related name is switched once the column is gone (a no-op in the database)."""
 
 from django.db import migrations, models
 import django.db.models.deletion
@@ -46,7 +51,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('email', models.EmailField(max_length=254)),
-                ('plant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='report_recipients', to='lots.plant')),
+                ('plant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='recipient_rows', to='lots.plant')),
             ],
             options={
                 'ordering': ['plant__code', 'email'],
@@ -57,5 +62,10 @@ class Migration(migrations.Migration):
         migrations.RemoveField(
             model_name='plant',
             name='report_recipients',
+        ),
+        migrations.AlterField(
+            model_name='plantreportrecipient',
+            name='plant',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='report_recipients', to='lots.plant'),
         ),
     ]

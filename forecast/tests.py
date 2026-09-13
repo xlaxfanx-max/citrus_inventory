@@ -169,9 +169,13 @@ class ServiceTests(Base):
         pred = rebuild_for_lot(lot)
         self.assertEqual(pred.confidence, 'low')
         rows = board_rows(plan_lots(self.plant), timezone.localdate(), self.settings)
+        # The stale date degrades rather than vanishing: still shown (greyed)
+        # and still counted in capacity, but never urgent or decision-bearing.
         self.assertFalse(rows[0]['dates_usable'])
-        self.assertIsNone(rows[0]['days_to_pack_by'])
-        self.assertEqual(sum(b['lots'] for b in capacity_projection(rows, self.plant, timezone.localdate())), 0)
+        self.assertTrue(rows[0]['date_stale'])
+        self.assertIsNotNone(rows[0]['days_to_pack_by'])
+        self.assertEqual(rows[0]['urgency'], '')
+        self.assertEqual(sum(b['lots'] for b in capacity_projection(rows, self.plant, timezone.localdate())), 1)
         self.assertEqual(build_report(self.plant)['to_pack'], [])
         rec = publish_plan(self.plant).recommendations.get()
         self.assertFalse(rec.requires_decision)
@@ -824,3 +828,62 @@ class QuickDecisionTests(Base):
         resp = self.client.get(reverse('forecast:readiness'), {'plant': self.plant.code})
         self.assertContains(resp, '90 s median · 2 samples in 30 days · target 90 s')
         self.assertContains(resp, '1 / 2 rooms')
+
+
+class ExposurePriorTests(Base):
+    """CR-1 from the 10 September review: the temperature prior must not be
+    applied retroactively to the elapsed term keyed to the current room."""
+
+    def _settings(self):
+        s = ModelSettings.get()
+        s.temperature_response = True
+        return s
+
+    def test_room_move_without_new_sample_leaves_cci_now_unchanged(self):
+        from .model import _reference_factor, predict
+        s = self._settings()
+        receive = TODAY - timedelta(days=30)
+        common = dict(as_of=TODAY, receive_date=receive, receiving_color='DG', points=[(20, -6.0)], decay_samples=[], settings=s)
+        before = predict(**common, room_temp_c=15.0, exposure=[(0, 31, 15.0)])
+        after = predict(**common, room_temp_c=5.0, exposure=[(0, 30, 15.0), (30, 31, 5.0)])
+        self.assertAlmostEqual(before['cci_now'], after['cci_now'], places=3)
+        self.assertAlmostEqual(before['cci_now'], -6.0 + 10 * s.prior_drift_dg * _reference_factor(15.0), places=3)
+        self.assertLess(after['drift_per_day'], before['drift_per_day'])
+        self.assertEqual(after['inputs']['method'], 'prior_from_one_point')
+        self.assertIn('elapsed prior integrated over recorded room history', after['inputs']['notes'])
+
+    def test_missing_history_runs_elapsed_term_at_reference_rate(self):
+        from .model import predict
+        s = self._settings()
+        r = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=30), receiving_color='DG', points=[(20, -6.0)], decay_samples=[], settings=s, room_temp_c=15.0)
+        self.assertAlmostEqual(r['cci_now'], -6.0 + 10 * s.prior_drift_dg, places=3)
+        self.assertGreater(r['drift_per_day'], s.prior_drift_dg)
+
+    def test_crossing_walks_history_then_extends_at_current_room_rate(self):
+        from .model import predict
+        s = self._settings()
+        common = dict(as_of=TODAY, receive_date=TODAY - timedelta(days=30), receiving_color='DG', points=[(20, -6.0)], decay_samples=[], settings=s)
+        warm = predict(**common, room_temp_c=15.0, exposure=[(0, 31, 15.0)])
+        cold = predict(**common, room_temp_c=8.0, exposure=[(0, 30, 15.0), (30, 31, 8.0)])
+        self.assertIsNotNone(warm['predicted_yellow_date'])
+        self.assertIsNotNone(cold['predicted_yellow_date'])
+        self.assertGreater(cold['predicted_yellow_date'], warm['predicted_yellow_date'])
+        self.assertGreater(warm['predicted_yellow_date'], TODAY)
+
+    def test_rebuild_passes_recorded_room_history(self):
+        from .services import rebuild_for_lot
+        s = self._settings()
+        s.save()
+        warm = Room.objects.create(plant=self.plant, name='Warm', target_temp_f=59)
+        cold = Room.objects.create(plant=self.plant, name='Cold', target_temp_f=41)
+        today = timezone.localdate()
+        lot = self.make_lot('26-EXPO', 30, current_room=cold)
+        LotRoomMove.objects.create(lot=lot, room=warm, moved_on=lot.receive_date)
+        LotRoomMove.objects.create(lot=lot, room=cold, moved_on=today)
+        pred = rebuild_for_lot(lot, as_of=today, settings=s)
+        exposure = pred.inputs['exposure']
+        self.assertEqual(len(exposure), 2)
+        self.assertEqual([round(e[2], 1) for e in exposure], [15.0, 5.0])
+        self.assertAlmostEqual(exposure[0][1], 30, places=3)
+        self.assertIsNotNone(pred.inputs['elapsed_prior_gain'])
+        self.assertEqual(pred.inputs['room_temp_c'], 5.0)

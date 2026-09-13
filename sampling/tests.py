@@ -497,3 +497,28 @@ class ColorCorrectionMethodTests(TestCase):
             scoring.score_image(self._photo(canvas), min_fruit=6)
         self.assertIn('all four corner markers', str(ctx.exception))
         self.assertIn('[3]', str(ctx.exception))
+
+
+class FruitMeasurementTests(TestCase):
+    def test_scoring_mirrors_per_fruit_arrays_into_rows_and_rescoring_replaces_them(self):
+        from lots.models import Grower, Lot, Plant
+        from .models import FruitMeasurement, Sample, SamplePhoto
+        plant = Plant.objects.create(code='SLA1', name='Plant 1')
+        grower = Grower.objects.create(sunkist_grower_no='1', name='G')
+        lot = Lot.objects.create(lot_no='26-F', plant=plant, grower=grower, receive_date=timezone.localdate())
+        sample = Sample.objects.create(lot=lot, foreman_color=Color.SILVER, foreman_pack_within_weeks=2)
+        photo = SamplePhoto.objects.create(sample=sample, image='')
+        result = {
+            'fruit_detected': 3, 'per_fruit_lab': [[60.0, -5.0, 40.0], [61.0, 2.0, 45.0], [62.0, 0.0, 0.0]],
+            'per_fruit_cci': [-2.083, 0.729, None], 'mean_cci': -0.677, 'std_cci': 1.4,
+            'correction': {'applied': True}, 'markers': [], 'blob_centers': [],
+        }
+        photo.mark_scored(result, 'test')
+        rows = list(FruitMeasurement.objects.filter(photo=photo).order_by('index'))
+        self.assertEqual([(r.index, r.lab_l, r.cci) for r in rows], [(0, 60.0, -2.083), (1, 61.0, 0.729), (2, 62.0, None)])
+        result['per_fruit_lab'] = result['per_fruit_lab'][:2]
+        result['per_fruit_cci'] = result['per_fruit_cci'][:2]
+        result['fruit_detected'] = 2
+        photo.mark_scored(result, 'test')
+        self.assertEqual(FruitMeasurement.objects.filter(photo=photo).count(), 2)
+        self.assertEqual(FruitMeasurement.objects.filter(photo__sample__lot=lot, cci__isnull=False).count(), 2)

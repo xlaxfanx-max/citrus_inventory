@@ -394,9 +394,50 @@ class SamplePhoto(models.Model):
         self.quality_ok = bool(correction.get('applied'))
         self.quality_warnings = warnings
         self.save()
+        self.sync_fruit_measurements()
 
     def mark_retry(self, error):
         self.status = self.Status.PENDING
         self.error = error[:2000]
         self.processing_started_at = None
         self.save(update_fields=['status', 'error', 'processing_started_at'])
+
+    def sync_fruit_measurements(self):
+        """Mirror the per-fruit arrays into FruitMeasurement rows (one per
+        fruit) so per-fruit color can be queried, grouped and joined in SQL.
+        The arrays stay the pipeline's raw record; this table is derived from
+        them and rebuilt whenever the photo is scored."""
+        self.fruit.all().delete()
+        labs = list(self.per_fruit_lab or [])
+        ccis = list(self.per_fruit_cci or [])
+        rows = []
+        for index in range(max(len(labs), len(ccis))):
+            lab = labs[index] if index < len(labs) and isinstance(labs[index], (list, tuple)) and len(labs[index]) == 3 else (None, None, None)
+            cci = ccis[index] if index < len(ccis) else None
+            rows.append(FruitMeasurement(photo=self, index=index, lab_l=lab[0], lab_a=lab[1], lab_b=lab[2], cci=cci))
+        FruitMeasurement.objects.bulk_create(rows)
+        return len(rows)
+
+
+class FruitMeasurement(models.Model):
+    """One fruit in one scored photo: its CIELAB color and citrus color index.
+
+    A multi-valued attribute of SamplePhoto held in its own table (first
+    normal form) rather than only in the JSON arrays, so a 25-fruit sample
+    can be summarized with SQL aggregates and percentiles.
+    """
+
+    photo = models.ForeignKey(SamplePhoto, on_delete=models.CASCADE, related_name='fruit')
+    index = models.PositiveSmallIntegerField(help_text='Position in the photo, 0-based, as detected by the pipeline.')
+    lab_l = models.FloatField(null=True, blank=True)
+    lab_a = models.FloatField(null=True, blank=True)
+    lab_b = models.FloatField(null=True, blank=True)
+    cci = models.FloatField(null=True, blank=True, help_text='Null when b* is too close to zero for a usable index.')
+
+    class Meta:
+        ordering = ['photo', 'index']
+        constraints = [models.UniqueConstraint(fields=['photo', 'index'], name='one_measurement_per_fruit')]
+
+    def __str__(self):
+        return f'{self.photo_id} fruit {self.index}: {self.cci}'
+

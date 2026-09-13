@@ -1,7 +1,9 @@
 # Entity-relationship diagram
 
 Conceptual and logical model of the Citrus Inventory database, in crow's foot
-notation. Twenty application entities plus Django's `User`. Read each
+notation. Twenty-two operational entities plus Django's `User`; the six
+reporting tables of the star schema in `warehouse/models.py` are described
+at the end. Read each
 relationship line from the entity nearest it: the inner mark is the minimum,
 the outer mark the maximum.
 
@@ -38,6 +40,9 @@ erDiagram
     IMPORT_BATCH |o--o{ PACKOUT : "sourced"
     IMPORT_BATCH |o--o{ ROOM_CONDITION : "sourced"
     IMPORT_BATCH |o--o{ LOT_TREATMENT : "sourced"
+    LOT ||--o{ LOT_CHANGE : "edited as"
+    USER |o--o{ LOT_CHANGE : "made"
+    SAMPLE_PHOTO ||--o{ FRUIT_MEASUREMENT : "measures"
 
     PLANT {
         bigint id PK
@@ -154,6 +159,25 @@ erDiagram
         json scoring_metadata
         bool quality_ok
     }
+    FRUIT_MEASUREMENT {
+        bigint id PK
+        bigint photo_id FK "unique with index"
+        int index
+        float lab_l
+        float lab_a
+        float lab_b
+        float cci "nullable"
+    }
+    LOT_CHANGE {
+        bigint id PK
+        bigint lot_id FK
+        bigint changed_by_id FK "nullable"
+        timestamptz changed_at
+        varchar source "web path, import kind, packout, command"
+        varchar field
+        text old_value
+        text new_value
+    }
     BOARD_CALIBRATION {
         bigint id PK
         bigint plant_id FK
@@ -264,7 +288,8 @@ erDiagram
 | One-to-many | Plant to Room, Plant to Lot, Grower to Lot, Lot to Sample, Sample to SamplePhoto, Lot to Prediction, Lot to Packout, Lot to LotTreatment, Room to RoomCondition, PackPlan to PlanRecommendation, PlanRecommendation to PlanDecision, Plant to PlantReportRecipient | Foreign key on the many side |
 | Many-to-many with attributes | Lot and Room through **LotRoomMove** (date, timestamp, who); PackPlan and Lot through **PlanRecommendation** (rank, action, frozen numbers) | Associative entity with a surrogate key plus a unique constraint on the natural pair: (plan, lot) for a recommendation, (lot, room, date or timestamp) for a move |
 | One-to-one | User and UserProfile | Foreign key with a UNIQUE constraint on the profile side, kept separate so the built-in auth table is untouched |
-| Multi-valued attribute | A plant's report recipients | Own table, PlantReportRecipient, unique on (plant, email) |
+| Multi-valued attribute | A plant's report recipients; the fruit in a photo | Own tables: PlantReportRecipient unique on (plant, email); FruitMeasurement unique on (photo, index), mirrored from the pipeline's JSON arrays each time a photo is scored |
+| Change history | Edits to a lot | LotChange, append-only, one row per changed field with user and source |
 | Supertype and subtype | Sample: routine versus shelf-life holdout | Single table with a `purpose` discriminator; holdout-only attributes are nullable and required when `purpose` is holdout |
 | Unary | none | |
 
@@ -294,4 +319,22 @@ The schema is in third normal form with these deliberate exceptions. Each is a s
 - **Lot.current_room**, **Lot.status** and **Lot.packed_date** are derived from the latest room move and the final packout. The importers and `Packout.save` maintain them, and two CHECK constraints keep status and packed_date consistent with each other.
 - **Packout.cartons_total** and **Packout.fresh_pct** are STORED generated columns. The database derives them, so they cannot drift.
 
-Repeating groups kept wide by design, for capture speed, and left as documented trade-offs: five defect counts on Sample, four carton grades on Packout, per-color priors on ModelSettings, and the per-fruit CCI arrays on SamplePhoto.
+Repeating groups kept wide by design, for capture speed, and left as documented trade-offs: five defect counts on Sample, four carton grades on Packout, and per-color priors on ModelSettings. The per-fruit arrays on SamplePhoto remain as the pipeline's raw record but are now also normalized into FruitMeasurement rows.
+
+## Reporting star schema
+
+The operational schema above is normalized for transactions. `warehouse/models.py` holds a separate, deliberately denormalized star schema for analysis, rebuilt in full by `manage.py build_warehouse`:
+
+```mermaid
+erDiagram
+    DW_DIM_PLANT ||--o{ DW_DIM_LOT : "context for"
+    DW_DIM_DATE ||--o{ DW_DIM_LOT : "receive, harvest, packed"
+    DW_DIM_LOT ||--o{ DW_FACT_PREDICTION : "forecast on a day"
+    DW_DIM_LOT ||--o{ DW_FACT_PACKOUT : "packed as"
+    DW_DIM_LOT ||--o{ DW_FACT_DECISION : "decided on"
+    DW_DIM_DATE ||--o{ DW_FACT_PREDICTION : "as_of, pack_by"
+    DW_DIM_DATE ||--o{ DW_FACT_PACKOUT : "packed, forecast pack_by"
+    DW_DIM_DATE ||--o{ DW_FACT_DECISION : "plan, decided, planned"
+```
+
+Facts are events with measures: a nightly prediction, a packout run (with its lateness against the forecast that existed at the time), a management decision. Dimensions are what you slice by: plant, lot with grower and variety flattened in, and a calendar with year, month, ISO week and weekday. Date keys are integers in yyyymmdd form.

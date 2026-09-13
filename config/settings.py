@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     'lots',
     'sampling',
     'forecast',
+    'warehouse',
 ]
 
 MIDDLEWARE = [
@@ -99,6 +100,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'lots.audit.AuditUserMiddleware',
     'lots.middleware.ForemanLanguageMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

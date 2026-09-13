@@ -143,7 +143,7 @@ class Command(BaseCommand):
                 per_fruit_lab=per_lab, per_fruit_cci=per_cci, mean_cci=round(sum(per_cci) / 10, 3),
                 std_cci=round((sum((c - sum(per_cci) / 10) ** 2 for c in per_cci) / 10) ** 0.5, 3),
                 processed_at=timezone.now(), pipeline_version='demo',
-            )
+            ).sync_fruit_measurements()
             rebuild_for_lot(lot, as_of=when, settings=cfg)
 
         if not packed and sample_days and rng.random() < 0.12:

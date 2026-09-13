@@ -25,6 +25,8 @@ from django.db.models.functions import Cast, Round
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from .audit import current_source, current_user
+
 
 class Color(models.TextChoices):
     """Lemon storage color progression, in order. Fruit only moves forward."""
@@ -220,12 +222,39 @@ class Lot(models.Model):
     def __str__(self):
         return f'{self.plant.code} {self.lot_no}'
 
+    # Fields whose edits are written to LotChange. Everything an import or an
+    # admin edit can alter; derived and audit-only fields are excluded.
+    TRACKED_FIELDS = (
+        'grower_id', 'block', 'variety', 'harvest_date', 'receive_date', 'receiving_color',
+        'intake_cci_mean', 'intake_cci_std', 'bins_received', 'current_room_id', 'status',
+        'packed_date', 'notes',
+    )
+
     def delete(self, *args, **kwargs):
         raise ValidationError('Lots are never deleted. Set status to packed or dumped instead.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
+        before = Lot.objects.filter(pk=self.pk).values(*self.TRACKED_FIELDS).first() if self.pk else None
         super().save(*args, **kwargs)
+        if before is None:
+            self.log_changes({'created': (None, self.lot_no)})
+        else:
+            self.log_changes({f: (before[f], getattr(self, f)) for f in self.TRACKED_FIELDS if before[f] != getattr(self, f)})
+
+    def log_changes(self, changes, source=None):
+        """Write one LotChange row per changed field. `changes` maps a field
+        name to (old, new). Attribution comes from lots.audit unless given."""
+        rows = [
+            LotChange(
+                lot=self, field=field, old_value=LotChange.render(old), new_value=LotChange.render(new),
+                changed_by=current_user(), source=source or current_source(),
+            )
+            for field, (old, new) in changes.items() if old != new
+        ]
+        if rows:
+            LotChange.objects.bulk_create(rows)
+        return len(rows)
 
     def clean(self):
         errors = {}
@@ -281,6 +310,31 @@ class Lot(models.Model):
     @property
     def is_partially_packed(self):
         return self.status == self.Status.IN_STORAGE and bool(list(self.packouts.all()))
+
+
+class LotChange(models.Model):
+    """Append-only history of edits to a lot: which field, from what, to
+    what, by whom and through which path. Samples, plans and decisions are
+    already versioned; this closes the gap for direct edits to the lot row."""
+
+    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='changes')
+    changed_at = models.DateTimeField(default=timezone.now)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='lot_changes')
+    source = models.CharField(max_length=120, blank=True, help_text='web:<path>, import:<kind>, packout, command:<name>.')
+    field = models.CharField(max_length=40)
+    old_value = models.TextField(blank=True)
+    new_value = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-changed_at', '-id']
+        indexes = [models.Index(fields=['lot', 'changed_at'])]
+
+    def __str__(self):
+        return f'{self.lot_id} {self.field}: {self.old_value!r} -> {self.new_value!r}'
+
+    @staticmethod
+    def render(value):
+        return '' if value is None else str(value)
 
 
 class LotRoomMove(models.Model):
@@ -620,15 +674,14 @@ class Packout(models.Model):
         lot = Lot.objects.get(pk=lot_id or self.lot_id)
         final = Packout.objects.filter(lot=lot, is_final=True).order_by('-packed_date').first()
         if final is not None:
-            Lot.objects.filter(pk=lot.pk).update(
-                status=Lot.Status.PACKED,
-                packed_date=final.packed_date,
-            )
+            new_status, new_date = Lot.Status.PACKED, final.packed_date
         elif lot.status == Lot.Status.PACKED:
-            Lot.objects.filter(pk=lot.pk).update(
-                status=Lot.Status.IN_STORAGE,
-                packed_date=None,
-            )
+            new_status, new_date = Lot.Status.IN_STORAGE, None
+        else:
+            return
+        if (lot.status, lot.packed_date) != (new_status, new_date):
+            Lot.objects.filter(pk=lot.pk).update(status=new_status, packed_date=new_date)
+            lot.log_changes({'status': (lot.status, new_status), 'packed_date': (lot.packed_date, new_date)}, source='packout')
 
     def clean(self):
         errors = {}

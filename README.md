@@ -11,7 +11,8 @@ Tracks color and quality per lemon lot, reconstructs room and treatment exposure
 - Production deployment runbook: [docs/production-deployment.md](docs/production-deployment.md)
 - Hardware per plant: [hardware/README.md](hardware/README.md), print file `hardware/board.svg`
 - Entity-relationship diagram and delete rules: [docs/erd.md](docs/erd.md)
-- Database design review: [docs/database-design-review-2026-09-13.md](docs/database-design-review-2026-09-13.md); PostgreSQL roles in `scripts/db_roles.sql`
+- Database design review: [docs/database-design-review-2026-09-13.md](docs/database-design-review-2026-09-13.md); PostgreSQL roles in `scripts/db_roles.sql`, monthly partitioning of room readings in `scripts/partition_room_conditions.sql`
+- Ten business queries with interpretation: [docs/course-queries.sql](docs/course-queries.sql), run with `python scripts/run_queries.py docs/course-queries.sql`
 
 ## Run it locally
 
@@ -35,7 +36,7 @@ Tests:
 
 ```
 .venv\Scripts\python manage.py collectstatic --noinput
-.venv\Scripts\python manage.py test lots sampling forecast
+.venv\Scripts\python manage.py test lots sampling forecast warehouse
 ```
 
 Collect static assets before testing: rendered pages use the production static-file manifest.
@@ -80,13 +81,16 @@ Use `sh scripts/release.sh` as the host's release command and `sh scripts/web.sh
 
 ## Jobs
 
-Three management commands, scheduled with cron or Windows Task Scheduler in `America/Los_Angeles`:
+Four management commands, scheduled with cron or Windows Task Scheduler in `America/Los_Angeles`:
 
 ```
 * * * * *    manage.py score_photos            # photos scored within ~1 minute of upload
 15 2 * * *   manage.py build_predictions       # nightly rebuild for every in-storage lot
+45 2 * * *   manage.py build_warehouse         # rebuild the dw_* reporting star schema after predictions
 30 5 * * 1   manage.py send_monday_report      # per-plant HTML email, Monday 05:30; publishes the week's plan version
 ```
+
+`build_warehouse` fills the read-only reporting tables (`dw_dim_*`, `dw_fact_*`) that the accuracy questions and `docs/course-queries.sql` run against. Direct edits to a lot are written to `LotChange` with the acting user and path; imports and packouts record their own source.
 
 `publish_plan [--plant SLA1] [--date YYYY-MM-DD]` freezes the current ranked board as a new plan version without emailing; the Monday report does the same automatically and links to the version it sent.
 

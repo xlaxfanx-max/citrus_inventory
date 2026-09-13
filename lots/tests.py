@@ -13,6 +13,7 @@ from django.db.models import ProtectedError
 from django.test import Client, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from forecast.model import MODEL_VERSION
 from .importers import conditions, packout, receiving, room_moves, run_import, treatments
@@ -723,3 +724,62 @@ class DatabaseRuleTests(Base):
         Packout.objects.create(lot=lot, packed_date=lot.receive_date + timedelta(days=2), cartons_fancy=1, bins_packed=None, is_final=False)
         self.assertIsNone(Lot.objects.with_bin_balance().get(pk=lot.pk).bins_remaining)
         self.assertIsNone(Lot.objects.get(pk=lot.pk).bins_remaining)
+
+
+class StaleForecastBoardTests(Base):
+    """F1 from the 10 September review: a stale forecast degrades on the
+    board instead of vanishing, and still counts toward bins due."""
+
+    def test_stale_forecast_keeps_its_date_greyed_and_counts_bins(self):
+        from forecast.models import Prediction
+        from sampling.models import Sample
+        gm = make_user('gm-stale', 'gm', None)
+        lot = self.make_lot('26-STALE', receive_date=date.today() - timedelta(days=40), bins_received=80)
+        Sample.objects.create(lot=lot, sampled_at=timezone.now() - timedelta(days=12), foreman_color=Color.SILVER, foreman_pack_within_weeks=1)
+        Prediction.objects.create(
+            lot=lot, as_of_date=date.today() - timedelta(days=5), cci_now=1.0, stage=Color.SILVER, drift_per_day=0.2,
+            predicted_yellow_date=date.today() + timedelta(days=9), pack_by_date=date.today() + timedelta(days=2),
+            confidence='med', model_version=MODEL_VERSION,
+            inputs={'points': [[20, -2.0], [28, 0.0]], 'receive_date': lot.receive_date.isoformat()},
+        )
+        rows = board_rows(Lot.objects.filter(pk=lot.pk).with_bin_balance().prefetch_related('predictions', 'samples__photos', 'packouts', 'room_moves__room'), date.today(), self.settings)
+        row = rows[0]
+        self.assertFalse(row['dates_usable'])
+        self.assertTrue(row['date_stale'])
+        self.assertEqual(row['days_to_pack_by'], 2)
+        self.assertEqual(row['urgency'], '')
+        self.assertNotIn(row['priority_code'], ('pack_this_week', 'pack_overdue'))
+        self.client.force_login(gm)
+        resp = self.client.get(reverse('lots:board'), {'plant': 'SLA1'})
+        self.assertContains(resp, (date.today() + timedelta(days=2)).strftime('%b %-d') if False else (date.today() + timedelta(days=2)).strftime('%b ') + str((date.today() + timedelta(days=2)).day))
+        self.assertContains(resp, 'from a sample 12d ago')
+        self.assertNotContains(resp, 'Not available')
+        self.assertEqual(resp.context['due_bins_7'], Decimal('80'))
+
+
+class LotChangeTests(Base):
+    def test_direct_edit_is_logged_with_user_and_source(self):
+        from .audit import acting_as
+        from .models import LotChange
+        user = make_user('editor', 'gm', None)
+        lot = self.make_lot(bins_received=100)
+        self.assertEqual(list(lot.changes.values_list('field', 'new_value')), [('created', lot.lot_no)])
+        with acting_as(user, 'web:/admin/'):
+            lot.bins_received = 90
+            lot.notes = 'recount'
+            lot.save()
+        changes = {c.field: c for c in LotChange.objects.filter(lot=lot).exclude(field='created')}
+        self.assertEqual(set(changes), {'bins_received', 'notes'})
+        self.assertEqual((changes['bins_received'].old_value, changes['bins_received'].new_value), ('100', '90'))
+        self.assertEqual((changes['notes'].changed_by, changes['notes'].source), (user, 'web:/admin/'))
+
+    def test_packout_status_change_and_reimport_are_logged(self):
+        lot = self.make_lot(receive_date=date(2026, 8, 11), bins_received=120)
+        Packout.objects.create(lot=lot, packed_date=date(2026, 9, 1), cartons_fancy=10)
+        status = lot.changes.get(field='status')
+        self.assertEqual((status.old_value, status.new_value, status.source), ('in_storage', 'packed', 'packout'))
+        self.assertEqual(lot.changes.get(field='packed_date').new_value, '2026-09-01')
+        receiving.run(csv_rows(RECEIVING.replace('2026-08-11,DG,120', '2026-08-11,DG,115')))
+        change = lot.changes.get(field='bins_received')
+        self.assertEqual((change.old_value, change.new_value, change.source), ('120', '115', 'import:receiving'))
+        self.assertEqual(lot.changes.filter(field='created').count(), 1)

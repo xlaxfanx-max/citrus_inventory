@@ -29,14 +29,21 @@ deliberately left as is.
 8. **DCL.** `scripts/db_roles.sql` creates owner, application and read-only analyst roles, and revokes DELETE on lot and history tables from the application role.
 9. **Corrected finding.** `PlanDecision.market_regime` was flagged as a transitive dependency. It is not: the plan's regime is editable after publish, so the copy is a true snapshot. The model now says so.
 
+## Second pass, same day
+
+10. **Per-fruit rows.** `FruitMeasurement` holds one row per fruit per scored photo (CIELAB and CCI), written by `SamplePhoto.mark_scored` and backfilled by `sampling 0008`. The JSON arrays remain the pipeline's raw record.
+11. **Lot edit history.** `LotChange` records every changed field on a lot with the acting user (from `lots.audit`, set by middleware for web requests) and the path: web, import kind, packout reconciliation. Bulk import paths log explicitly.
+12. **Reporting star schema.** The `warehouse` app holds `dw_dim_date`, `dw_dim_plant`, `dw_dim_lot` and three fact tables (prediction, packout, decision), rebuilt in full by `manage.py build_warehouse`. Packout lateness against the forecast in force at the time is computed once at load. Tables, not views, so operational migrations stay unaffected.
+13. **Partitioning script.** `scripts/partition_room_conditions.sql` converts the room-readings table to monthly range partitions on PostgreSQL. Run by hand before a live sensor feed.
+14. **Ten business queries.** `docs/course-queries.sql`, seven of which join three or more tables, each with a reading and a recommendation. Verified against the seeded demo database with `scripts/run_queries.py`.
+15. **Review blockers from 10 September.** The drift model now integrates the temperature factor over recorded room history for the elapsed term and applies the current room only from today forward (model version v1.3), so a room move without a new sample leaves `cci_now` unchanged. Stale forecasts keep their date on the board, greyed with the sample age, and still count toward bins due; urgency and pack actions still require usable evidence. The release script rebuilds predictions so a model version bump cannot blank the board.
+
 ## Left as is, with reasons
 
-- **Per-fruit CCI arrays on SamplePhoto** and the nine-patch calibration JSON are repeating groups. A `FruitMeasurement` table would allow percentile work in SQL, but the scoring pipeline writes and re-reads these arrays as a unit and re-scoring replaces them wholesale. Revisit when a query needs per-fruit rows.
 - **Wide defect and carton columns** on Sample and Packout, and per-color priors on ModelSettings, are repeating groups normalizable into lookup tables. They stay wide for a fixed capture form and fast reads. Adding a defect type is a migration, which is acceptable at this scale.
-- **Reporting views and a star schema.** Prediction, Packout and PlanDecision are facts; Lot, Plant and date are dimensions. Views over these would make future migrations brittle on both engines (PostgreSQL blocks column type changes under a view; SQLite invalidates views on table rebuilds). Build the analytics layer as a separate reporting schema or export once the validation dataset stabilizes.
-- **RoomCondition partitioning.** The one table that will reach millions of rows. Partition by month in PostgreSQL before sensor feeds go live; not needed for CSV-imported readings.
-- **Audit history on Lot edits.** Samples, plans and decisions are append-only, but direct edits to a Lot are not versioned. A history table is the next governance step.
+- **Nine-patch calibration JSON** on BoardCalibration stays as JSON; it is validated as a unit and never queried per patch.
+- **Hold budget for lots already yellow** (F2 in the 10 September review) is a modelling change, not a schema one, and is still open.
 
 ## Verification
 
-Test suite: 140 tests pass on SQLite, including seven new tests covering the CHECK constraint, PROTECT on users and lot dependents, the recipient table, form validation, generated columns after a raw UPDATE, and the SQL bin balance against the Python property. The generated-column DDL was verified on SQLite only; the PostgreSQL expression uses CAST to double precision, ROUND to numeric and CASE, all immutable, but staging should run `migrate` before production.
+Test suite: 150 tests pass on SQLite, including new tests for the CHECK constraint, PROTECT on users and lot dependents, the recipient table, form validation, generated columns after a raw UPDATE, the SQL bin balance, the exposure-integrated prior, stale-date degradation on the board, fruit measurement rows, lot change logging, and the warehouse rebuild. The generated-column DDL and the partitioning script were verified on SQLite and by inspection only; staging should run `migrate` on PostgreSQL before production.

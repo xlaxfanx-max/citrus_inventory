@@ -12,6 +12,7 @@ Tracks color and quality per lemon lot, reconstructs room and treatment exposure
 - Hardware per plant: [hardware/README.md](hardware/README.md), print file `hardware/board.svg`
 - Entity-relationship diagram and delete rules: [docs/erd.md](docs/erd.md)
 - Database design review: [docs/database-design-review-2026-09-13.md](docs/database-design-review-2026-09-13.md); PostgreSQL roles in `scripts/db_roles.sql`, monthly partitioning of room readings in `scripts/partition_room_conditions.sql`
+- Hold budget model (days of marketable hold per color stage): [docs/hold-budget-model.md](docs/hold-budget-model.md)
 - Ten business queries with interpretation: [docs/course-queries.sql](docs/course-queries.sql), run with `python scripts/run_queries.py docs/course-queries.sql`
 
 ## Run it locally

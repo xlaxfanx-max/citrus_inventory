@@ -21,12 +21,19 @@ spec leaves open, resolved here:
   recorded room history (`exposure`), so a room move with no new sample never
   changes cci_now. Days with no recorded room use the 55 F reference; the
   current room's factor applies only from today forward.
+* Hold budget. Every color stage has a budget of days a lot can be held
+  there and stay marketable (ModelSettings.hold_days_*). The budget starts on
+  the day the CCI path entered the stage, is spent one day per day, faster in
+  warm rooms (hold_warm_multiplier) and by observed decay
+  (hold_decay_days_per_pct). Once a lot is yellow the pack-by date is in the
+  past by construction, so the hold budget becomes the operative date; before
+  yellow, whichever of pack-by and hold-until comes first is binding.
 """
 
 import math
 from datetime import timedelta
 
-MODEL_VERSION = 'v1.3-linear-cci'
+MODEL_VERSION = 'v1.4-hold-budget'
 MIN_SLOPE = 0.005          # CCI per day; below this the line is treated as flat
 MAX_FIT_POINTS = 5
 HIGH_CONF_MIN_POINTS = 4
@@ -109,6 +116,49 @@ def prior_crossing_day(base_prior, anchor_day, anchor_cci, target, segments, day
         need -= rate * (b - a)
     forward = base_prior * current_factor
     return max(anchor_day, day_now) + need / forward if forward > 0 else float('inf')
+
+
+def hold_budget(*, stage, day_now, settings, method, slope, intercept, pts, base_prior,
+                segments, current_factor, start_cci, exposure, decay_rate):
+    """Days of hold budget left at day_now for a lot at `stage`.
+
+    stage_entry_day is where the same CCI path (fitted line or walked prior)
+    crossed the lower boundary of the current stage; a lot received at or
+    above that boundary entered on day 0. Warm days in the stage spend
+    (multiplier - 1) extra days each; observed decay removes a fixed number
+    of days per percent."""
+    thresholds = settings.thresholds_dict()
+    boundary = {'LG': thresholds['dg_max'], 'S': thresholds['lg_max'], 'Y': thresholds['s_max']}.get(str(stage))
+    if boundary is None:
+        entry = 0.0
+    elif method == 'ols':
+        entry = (boundary - intercept) / slope if slope > 0 else 0.0
+    else:
+        anchor_day, anchor_cci = pts[-1] if pts else (0, start_cci)
+        entry = prior_crossing_day(base_prior, anchor_day, anchor_cci, boundary, segments, day_now, current_factor)
+    entry = min(max(0.0, float(entry)), float(day_now))
+    warm_threshold = float(getattr(settings, 'warm_storage_temp_c', 13.0))
+    warm_days = sum(
+        max(0.0, min(float(end), float(day_now)) - max(float(start), entry))
+        for start, end, temp_c in (exposure or [])
+        if temp_c is not None and temp_c >= warm_threshold
+    )
+    multiplier = max(1.0, float(getattr(settings, 'hold_warm_multiplier', 1.0)))
+    warm_extra = warm_days * (multiplier - 1.0)
+    decay_penalty = decay_rate * 100.0 * float(getattr(settings, 'hold_decay_days_per_pct', 0.0))
+    budget = settings.hold_days(stage)
+    days_in_stage = day_now - entry
+    remaining = budget - days_in_stage - warm_extra - decay_penalty
+    return {
+        'budget_days': budget,
+        'stage_entry_day': round(entry, 2),
+        'days_in_stage': round(days_in_stage, 1),
+        'warm_days_in_stage': round(warm_days, 1),
+        'warm_multiplier': multiplier,
+        'warm_extra_days': round(warm_extra, 1),
+        'decay_penalty_days': round(decay_penalty, 1),
+        'days_remaining': int(math.floor(remaining)),
+    }
 
 
 def ols(xs, ys):
@@ -235,12 +285,27 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
 
     decay_rate, decay_flag = decay_summary(decay_samples, settings.decay_flag_pct)
 
+    stage = settings.stage_for(cci_now)
+    hold = hold_budget(
+        stage=stage, day_now=day_now, settings=settings, method=method,
+        slope=slope if method == 'ols' else 0.0, intercept=intercept if method == 'ols' else 0.0,
+        pts=pts, base_prior=base_prior, segments=segments, current_factor=current_factor,
+        start_cci=settings.start_cci(receiving_color), exposure=exposure, decay_rate=decay_rate,
+    )
+    stage_entry_date = receive_date + timedelta(days=int(round(hold['stage_entry_day'])))
+    hold_until = as_of + timedelta(days=hold['days_remaining'])
+    if cci_now >= yellow:
+        notes.append(f"yellow since about {stage_entry_date.isoformat()}; {hold['days_remaining']} days of hold budget remain")
+
     return {
         'cci_now': round(cci_now, 3),
-        'stage': settings.stage_for(cci_now),
+        'stage': stage,
         'drift_per_day': round(drift, 5),
         'predicted_yellow_date': predicted_yellow,
         'pack_by_date': pack_by,
+        'stage_entry_date': stage_entry_date,
+        'hold_days_remaining': hold['days_remaining'],
+        'hold_until_date': hold_until,
         'decay_rate': round(decay_rate, 4),
         'decay_flag': decay_flag,
         'confidence': confidence,
@@ -259,6 +324,7 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
             'temperature_factor': round(current_factor, 4) if use_temperature else None,
             'exposure': [[round(s, 3), round(e, 3), t] for s, e, t in (exposure or [])],
             'elapsed_prior_gain': round(elapsed_gain(pts[-1][0] if pts else 0), 4) if method != 'ols' else None,
+            'hold': hold,
             'start_cci': settings.start_cci(receiving_color),
             'thresholds': settings.thresholds_dict(),
             'buffer_days': settings.buffer_days,

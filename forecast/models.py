@@ -47,7 +47,10 @@ class Prediction(models.Model):
     stage = models.CharField(max_length=2, choices=Color.choices)
     drift_per_day = models.FloatField()
     predicted_yellow_date = models.DateField(null=True, blank=True)
-    pack_by_date = models.DateField(null=True, blank=True)
+    pack_by_date = models.DateField(null=True, blank=True, help_text='Predicted yellow date minus the buffer; the color deadline.')
+    stage_entry_date = models.DateField(null=True, blank=True, help_text='Estimated day the lot entered its current color stage.')
+    hold_days_remaining = models.IntegerField(null=True, blank=True, help_text='Hold budget left at as_of_date; negative once exhausted.')
+    hold_until_date = models.DateField(null=True, blank=True, help_text='as_of_date plus the hold budget remaining.')
     decay_rate = models.FloatField(default=0.0, help_text='Fraction, 0-1, over the last two samples.')
     decay_flag = models.BooleanField(default=False)
     confidence = models.CharField(max_length=4, choices=Confidence.choices, default=Confidence.LOW)
@@ -73,6 +76,25 @@ class Prediction(models.Model):
 
     def days_to_pack_by(self, today):
         return (self.pack_by_date - today).days if self.pack_by_date else None
+
+    @property
+    def deadline_kind(self):
+        """Which date the board acts on: 'hold' when the hold budget binds
+        (always once the lot is yellow, since the color deadline is then in
+        the past by construction), otherwise 'pack_by'."""
+        if self.hold_until_date is None:
+            return 'pack_by'
+        if self.stage == Color.YELLOW or self.pack_by_date is None:
+            return 'hold'
+        return 'hold' if self.hold_until_date < self.pack_by_date else 'pack_by'
+
+    @property
+    def deadline_date(self):
+        return self.hold_until_date if self.deadline_kind == 'hold' else self.pack_by_date
+
+    def days_to_deadline(self, today):
+        deadline = self.deadline_date
+        return (deadline - today).days if deadline else None
 
     @property
     def decay_pct(self):
@@ -225,7 +247,9 @@ class PlanRecommendation(models.Model):
     requires_decision = models.BooleanField(
         default=False, help_text='True for pack-now and decay actions; management must record a decision.'
     )
-    pack_by_date = models.DateField(null=True, blank=True)
+    pack_by_date = models.DateField(null=True, blank=True, help_text='Color deadline snapshot.')
+    hold_until_date = models.DateField(null=True, blank=True, help_text='Hold budget end snapshot.')
+    deadline_kind = models.CharField(max_length=8, blank=True, help_text="'hold' or 'pack_by': which date the recommendation acted on.")
     stage = models.CharField(max_length=2, choices=Color.choices, blank=True)
     cci_now = models.FloatField(null=True, blank=True)
     confidence = models.CharField(max_length=4, choices=Prediction.Confidence.choices, blank=True)
@@ -251,16 +275,23 @@ class PlanRecommendation(models.Model):
         """Current decision: the most recent one recorded (decisions are add-only)."""
         return next(iter(self.decisions.all()), None)
 
+    @property
+    def deadline_date(self):
+        """The date this recommendation acted on: hold end or color pack-by."""
+        return self.hold_until_date if self.deadline_kind == 'hold' and self.hold_until_date else self.pack_by_date
+
     def outcome(self, today):
-        """What actually happened to the lot after this recommendation."""
+        """What actually happened to the lot after this recommendation, measured
+        against the deadline the recommendation acted on."""
         lot = self.lot
+        deadline = self.deadline_date
         if lot.status == Lot.Status.PACKED and lot.packed_date:
-            delta = (lot.packed_date - self.pack_by_date).days if self.pack_by_date else None
+            delta = (lot.packed_date - deadline).days if deadline else None
             return {'status': 'packed', 'date': lot.packed_date, 'days_after_pack_by': delta, 'days_abs': abs(delta) if delta is not None else None}
         if lot.status == Lot.Status.DUMPED:
             return {'status': 'dumped', 'date': None, 'days_after_pack_by': None, 'days_abs': None}
-        overdue = self.pack_by_date is not None and today > self.pack_by_date
-        late = (today - self.pack_by_date).days if overdue else None
+        overdue = deadline is not None and today > deadline
+        late = (today - deadline).days if overdue else None
         return {'status': 'in_storage', 'date': None, 'days_after_pack_by': late, 'days_abs': late}
 
 
@@ -333,7 +364,7 @@ class PlanDecision(models.Model):
             errors['notes'] = 'Explain the reason in the notes.'
         if self.status == self.Status.ACCEPTED and self.planned_pack_date and self.recommendation_id:
             rec = self.recommendation
-            if rec.pack_by_date and self.planned_pack_date > rec.pack_by_date:
+            if rec.deadline_date and self.planned_pack_date > rec.deadline_date:
                 errors['planned_pack_date'] = 'A planned date after the pack-by date is a deferral, not an acceptance.'
         if errors:
             raise ValidationError(errors)

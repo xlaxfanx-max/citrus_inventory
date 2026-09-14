@@ -47,6 +47,7 @@ class ModelSettingsForm(forms.ModelForm):
             'sample_overdue_days', 'import_gap_days',
             'sample_fruit_count', 'warm_storage_temp_c', 'warm_weeks_flag', 'temperature_response',
             'color_correction_method',
+            'hold_days_dg', 'hold_days_lg', 'hold_days_s', 'hold_days_y', 'hold_warm_multiplier', 'hold_decay_days_per_pct',
         ]
 
     def clean(self):

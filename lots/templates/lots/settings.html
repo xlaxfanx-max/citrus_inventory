@@ -39,6 +39,13 @@
       <p class="help muted small">Room setpoints are entered per room in Administration (target temperature, °F). The rot-risk clock and the temperature response both read them from there.</p>
     </div>
     <div class="card">
+      <h3 style="margin-top:0">Hold budget</h3>
+      <p class="help muted small">How many days a lot can be held at each color stage before it stops being marketable. Once a lot is yellow, the board shows days of hold left instead of a pack-by date in the past. Warm rooms and observed decay spend the budget faster.</p>
+      {% for f in form %}{% if f.name|slice:':5' == 'hold_' %}
+        <div class="field"><label for="{{ f.id_for_label }}">{{ f.label }}</label><br>{{ f }}<div class="help">{{ f.help_text }}</div>{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+    <div class="card">
       <h3 style="margin-top:0">Plants: Monday report recipients and capacity</h3>
       {{ formset.management_form }}
       {% for pf in formset %}

@@ -137,8 +137,8 @@ def lot_detail(request, pk, packout_form=None):
     plan_row = board_rows([lot], today, settings)[0] if lot.status == Lot.Status.IN_STORAGE else None
     environment = environment_features(lot, today)
     overdue_days = days_to_pack_by = None
-    if latest and latest.pack_by_date and lot.status == Lot.Status.IN_STORAGE:
-        days_to_pack_by = (latest.pack_by_date - today).days
+    if latest and latest.deadline_date and lot.status == Lot.Status.IN_STORAGE:
+        days_to_pack_by = (latest.deadline_date - today).days
         if days_to_pack_by < 0:
             overdue_days, days_to_pack_by = -days_to_pack_by, None
     packout_forms = {}
@@ -161,6 +161,7 @@ def lot_detail(request, pk, packout_form=None):
         'warm': warm_exposure(lot, today, settings),
         'overdue_days': overdue_days,
         'days_to_pack_by': days_to_pack_by,
+        'deadline_kind': latest.deadline_kind if latest else 'pack_by',
         'packout_forms': packout_forms,
         'plan_history': list(lot_decision_history(lot)),
     }

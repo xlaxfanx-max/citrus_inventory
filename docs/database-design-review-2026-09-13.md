@@ -42,7 +42,7 @@ deliberately left as is.
 
 - **Wide defect and carton columns** on Sample and Packout, and per-color priors on ModelSettings, are repeating groups normalizable into lookup tables. They stay wide for a fixed capture form and fast reads. Adding a defect type is a migration, which is acceptable at this scale.
 - **Nine-patch calibration JSON** on BoardCalibration stays as JSON; it is validated as a unit and never queried per patch.
-- **Hold budget for lots already yellow** (F2 in the 10 September review) is a modelling change, not a schema one, and is still open.
+- **Hold budget for lots already yellow** (F2 in the 10 September review) was built on 14 September as model v1.4; see [hold-budget-model.md](hold-budget-model.md).
 
 ## Verification
 

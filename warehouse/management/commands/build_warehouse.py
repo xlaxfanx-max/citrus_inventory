@@ -54,6 +54,7 @@ class Command(BaseCommand):
         # Calendar: from the earliest date the facts mention to a year past today.
         dates = [lot.receive_date for lot in lots] + [lot.harvest_date for lot in lots if lot.harvest_date]
         dates += [p.as_of_date for p in predictions] + [p.pack_by_date for p in predictions if p.pack_by_date]
+        dates += [p.hold_until_date for p in predictions if p.hold_until_date]
         dates += [d.recommendation.plan.plan_date for d in decisions]
         first = min(dates, default=today) - timedelta(days=7)
         last = max(dates + [today], default=today) + timedelta(days=366)
@@ -82,6 +83,8 @@ class Command(BaseCommand):
                 FactPrediction(
                     lot_id=p.lot_id, as_of_date_id=date_key(p.as_of_date), pack_by_date_id=date_key(p.pack_by_date),
                     days_to_pack_by=(p.pack_by_date - p.as_of_date).days if p.pack_by_date else None,
+                    hold_until_date_id=date_key(p.hold_until_date), hold_days_remaining=p.hold_days_remaining,
+                    deadline_kind=p.deadline_kind,
                     cci_now=p.cci_now, stage=p.stage, drift_per_day=p.drift_per_day, decay_rate=p.decay_rate,
                     decay_flag=p.decay_flag, confidence=p.confidence, n_points=p.n_points,
                     method=(p.inputs or {}).get('method', ''), model_version=p.model_version,

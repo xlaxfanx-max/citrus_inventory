@@ -89,7 +89,7 @@ def board_rows(lots, today, settings):
         # shows its last pack-by date (greyed, with why) and still counts
         # toward bins due. Urgency and pack actions need usable evidence.
         dates_usable = bool(pred) and not evidence_notes
-        days_to = pred.days_to_pack_by(today) if pred else None
+        days_to = pred.days_to_deadline(today) if pred else None
         if days_to is None or not dates_usable:
             urgency = ''
         elif days_to <= 7:
@@ -130,7 +130,9 @@ def board_rows(lots, today, settings):
             'photo_processing': photo_processing,
             'photo_quality_low': photo_quality_low,
             'dates_usable': dates_usable,
-            'date_stale': bool(pred and pred.pack_by_date and not dates_usable),
+            'date_stale': bool(pred and pred.deadline_date and not dates_usable),
+            'deadline': pred.deadline_date if pred else None,
+            'deadline_kind': pred.deadline_kind if pred else '',
             'evidence_notes': evidence_notes,
             'days_to_pack_by': days_to,
             'overdue_days': -days_to if days_to is not None and days_to < 0 else None,
@@ -149,7 +151,7 @@ def board_rows(lots, today, settings):
         })
     rows.sort(key=lambda r: (
         r['priority_rank'],
-        r['pred'].pack_by_date if r['pred'] and r['pred'].pack_by_date else date.max,
+        r['pred'].deadline_date if r['pred'] and r['pred'].deadline_date else date.max,
         -r['lot'].days_in_storage,
     ))
     return rows
@@ -165,7 +167,7 @@ def capacity_projection(rows, plant, today, weeks=8):
         end = start + timedelta(days=6)
         bucket_rows = []
         for row in rows:
-            pack_by = row['pred'].pack_by_date if row['pred'] else None
+            pack_by = row['pred'].deadline_date if row['pred'] else None
             if not pack_by:
                 continue
             if offset == 0:

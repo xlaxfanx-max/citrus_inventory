@@ -5,7 +5,7 @@ from .models import PackPlan, PlanDecision, PlanRecommendation, Prediction, Repo
 
 @admin.register(Prediction)
 class PredictionAdmin(admin.ModelAdmin):
-    list_display = ['lot', 'as_of_date', 'stage', 'cci_now', 'drift_per_day', 'pack_by_date', 'decay_flag', 'confidence', 'model_version']
+    list_display = ['lot', 'as_of_date', 'stage', 'cci_now', 'drift_per_day', 'pack_by_date', 'hold_until_date', 'decay_flag', 'confidence', 'model_version']
     list_filter = ['lot__plant', 'confidence', 'decay_flag', 'model_version']
     search_fields = ['lot__lot_no']
     readonly_fields = [f.name for f in Prediction._meta.fields]

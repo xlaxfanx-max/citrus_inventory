@@ -515,7 +515,7 @@ class PlanTests(Base):
         self.foreman.groups.add(Group.objects.get_or_create(name='foreman')[0])
         UserProfile.objects.create(user=self.foreman, plant=self.plant)
         self.today = date.today()
-        # urgent: already past yellow -> pack overdue, needs a decision
+        # urgent: already past yellow -> the hold budget binds (about three days left), needs a decision
         self.urgent = self.make_lot('26-URG', 40, bins_received=100)
         self.add_sample(self.urgent, 14, 1.0)
         self.add_sample(self.urgent, 7, 3.0)
@@ -540,10 +540,13 @@ class PlanTests(Base):
         self.assertEqual([r.lot for r in recs], [self.urgent, self.calm])
         self.assertEqual([r.rank for r in recs], [1, 2])
         urgent = recs[0]
-        self.assertEqual(urgent.action, PlanAction.PACK_OVERDUE)
+        self.assertEqual(urgent.action, PlanAction.PACK_THIS_WEEK)
         self.assertTrue(urgent.requires_decision)
         self.assertEqual(urgent.prediction, self.urgent.predictions.first())
         self.assertEqual(urgent.pack_by_date, urgent.prediction.pack_by_date)
+        self.assertLess(urgent.pack_by_date, self.today)
+        self.assertEqual((urgent.deadline_kind, urgent.hold_until_date), ('hold', urgent.prediction.hold_until_date))
+        self.assertGreaterEqual(urgent.deadline_date, self.today)
         self.assertEqual(urgent.bins_remaining, 100)
         self.assertEqual(recs[1].action, PlanAction.MONITOR)
         self.assertFalse(recs[1].requires_decision)
@@ -564,7 +567,7 @@ class PlanTests(Base):
         with self.assertRaises(ValidationError) as ctx:
             PlanDecision.objects.create(
                 recommendation=rec, status=PlanDecision.Status.ACCEPTED,
-                planned_pack_date=rec.pack_by_date + timedelta(days=3),
+                planned_pack_date=rec.deadline_date + timedelta(days=3),
             )
         self.assertIn('planned_pack_date', ctx.exception.message_dict)
         ok = PlanDecision.objects.create(recommendation=rec, status=PlanDecision.Status.ACCEPTED, decided_by=self.gm)
@@ -703,7 +706,7 @@ class PlanTests(Base):
         rec = PlanRecommendation.objects.get(pk=rec.pk)
         out = rec.outcome(packed)
         self.assertEqual(out['status'], 'packed')
-        self.assertEqual(out['days_after_pack_by'], (packed - rec.pack_by_date).days)
+        self.assertEqual(out['days_after_pack_by'], (packed - rec.deadline_date).days)
 
     def test_monday_report_publishes_plan_and_links_to_it(self):
         n = send_report(self.plant, today=self.today)
@@ -887,3 +890,91 @@ class ExposurePriorTests(Base):
         self.assertAlmostEqual(exposure[0][1], 30, places=3)
         self.assertIsNotNone(pred.inputs['elapsed_prior_gain'])
         self.assertEqual(pred.inputs['room_temp_c'], 5.0)
+
+
+class HoldBudgetTests(TestCase):
+    """A3 from the 10 September review: lots at or past a stage get days of
+    hold budget instead of an ever-growing 'overdue' count."""
+
+    def setUp(self):
+        self.s = ModelSettings.get()
+        self.s.temperature_response = True
+
+    def yellow(self, **kw):
+        # OLS line: intercept -9, slope 0.3 -> CCI 3.0 at day 40, crossed 2.0 on day 36.67.
+        base = dict(as_of=TODAY, receive_date=TODAY - timedelta(days=40), receiving_color='DG',
+                    points=[(10, -6.0), (30, 0.0), (40, 3.0)], decay_samples=[], settings=self.s)
+        base.update(kw)
+        return predict(**base)
+
+    def test_yellow_lot_gets_hold_budget_from_stage_entry(self):
+        r = self.yellow()
+        self.assertEqual(r['stage'], Color.YELLOW)
+        self.assertLess(r['pack_by_date'], TODAY)
+        self.assertEqual(r['stage_entry_date'], TODAY - timedelta(days=3))
+        self.assertAlmostEqual(r['inputs']['hold']['days_in_stage'], 3.3, places=1)
+        self.assertEqual(r['hold_days_remaining'], self.s.hold_days_y - 4)  # floor(14 - 3.33)
+        self.assertEqual(r['hold_until_date'], TODAY + timedelta(days=r['hold_days_remaining']))
+        self.assertTrue(any('hold budget' in n for n in r['inputs']['notes']))
+
+    def test_warm_rooms_and_decay_spend_the_budget_faster(self):
+        cool = self.yellow(room_temp_c=10.0, exposure=[(0, 41, 10.0)])
+        warm = self.yellow(room_temp_c=15.0, exposure=[(0, 41, 15.0)])
+        self.assertEqual(warm['inputs']['hold']['warm_days_in_stage'], 3.3)
+        self.assertEqual(warm['hold_days_remaining'], cool['hold_days_remaining'] - 3)
+        decayed = self.yellow(decay_samples=[(2, 25)])  # 8 % decay x 3 days per percent
+        self.assertEqual(decayed['inputs']['hold']['decay_penalty_days'], 24.0)
+        self.assertLess(decayed['hold_days_remaining'], 0)
+        self.assertLess(decayed['hold_until_date'], TODAY)
+
+    def test_green_lot_uses_stage_entry_of_its_own_stage(self):
+        # Silver: entered when the line crossed cci_lg_max (-3.0) on day 20.
+        r = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=30), receiving_color='DG',
+                    points=[(10, -6.0), (30, 0.0)], decay_samples=[], settings=self.s)
+        self.assertEqual(r['stage'], Color.SILVER)
+        self.assertEqual(r['inputs']['hold']['stage_entry_day'], 20.0)
+        self.assertEqual(r['inputs']['hold']['budget_days'], self.s.hold_days_s)
+        self.assertEqual(r['hold_days_remaining'], self.s.hold_days_s - 10)
+
+    def test_prior_path_and_received_at_stage(self):
+        r = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=10), receiving_color='S',
+                    points=[], decay_samples=[], settings=self.s)
+        self.assertEqual(r['stage'], Color.SILVER)
+        self.assertEqual(r['inputs']['hold']['stage_entry_day'], 0.0)
+        self.assertEqual(r['hold_days_remaining'], self.s.hold_days_s - 10)
+
+
+class HoldBudgetDeadlineTests(Base):
+    def test_yellow_prediction_deadline_is_hold_end_and_board_uses_it(self):
+        from lots.planning import board_rows, plan_lots
+        from .plans import publish_plan
+        today = timezone.localdate()
+        lot = self.make_lot('26-YELLOW', 90, bins_received=50)
+        Sample.objects.create(lot=lot, foreman_color=Color.YELLOW, foreman_pack_within_weeks=1)
+        pred = Prediction.objects.create(
+            lot=lot, as_of_date=today, cci_now=3.0, stage=Color.YELLOW, drift_per_day=0.2,
+            predicted_yellow_date=today - timedelta(days=80), pack_by_date=today - timedelta(days=87),
+            stage_entry_date=today - timedelta(days=9), hold_days_remaining=5, hold_until_date=today + timedelta(days=5),
+            confidence='high', model_version=MODEL_VERSION,
+            inputs={'points': [[5, 1.0], [10, 3.0], [88, 3.5]], 'receive_date': lot.receive_date.isoformat()},
+        )
+        self.assertEqual((pred.deadline_kind, pred.deadline_date), ('hold', today + timedelta(days=5)))
+        row = board_rows(plan_lots(self.plant, today), today, self.settings)[0]
+        self.assertEqual((row['deadline_kind'], row['days_to_pack_by'], row['overdue_days']), ('hold', 5, None))
+        self.assertEqual(row['priority_code'], 'pack_this_week')
+        rec = publish_plan(self.plant, today=today).recommendations.get()
+        self.assertEqual((rec.deadline_kind, rec.deadline_date, rec.pack_by_date), ('hold', today + timedelta(days=5), today - timedelta(days=87)))
+        self.assertEqual(rec.outcome(today)['days_after_pack_by'], None)
+
+    def test_green_prediction_binds_on_the_earlier_of_pack_by_and_hold(self):
+        today = timezone.localdate()
+        lot = self.make_lot('26-GREEN', 30)
+        early_hold = Prediction(lot=lot, as_of_date=today, cci_now=0.0, stage=Color.SILVER, drift_per_day=0.2,
+                                pack_by_date=today + timedelta(days=20), hold_until_date=today + timedelta(days=6), model_version=MODEL_VERSION)
+        self.assertEqual((early_hold.deadline_kind, early_hold.deadline_date), ('hold', today + timedelta(days=6)))
+        late_hold = Prediction(lot=lot, as_of_date=today, cci_now=0.0, stage=Color.SILVER, drift_per_day=0.2,
+                               pack_by_date=today + timedelta(days=20), hold_until_date=today + timedelta(days=40), model_version=MODEL_VERSION)
+        self.assertEqual((late_hold.deadline_kind, late_hold.deadline_date), ('pack_by', today + timedelta(days=20)))
+        no_hold = Prediction(lot=lot, as_of_date=today, cci_now=0.0, stage=Color.SILVER, drift_per_day=0.2,
+                             pack_by_date=today + timedelta(days=20), model_version=MODEL_VERSION)
+        self.assertEqual(no_hold.deadline_kind, 'pack_by')

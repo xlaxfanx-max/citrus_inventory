@@ -4,8 +4,6 @@ import numpy as np
 from django.contrib.auth.models import Group, User
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.core.signals import request_finished
-from django.db import close_old_connections
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -392,18 +390,13 @@ class CaptureFlowTests(Base):
         resp = self.client.get(reverse('sampling:photo', args=[photo.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp['Content-Type'], 'image/jpeg')
-        # Consume the stream so the file handle closes (Windows tempdir cleanup).
-        # The test client fires request_finished when a streaming response is
-        # exhausted; with close_old_connections attached that closes the
-        # PostgreSQL connection inside the test transaction and every later
-        # test in the class fails with "the connection is closed". Django's own
-        # client disconnects the handler for non-streaming responses; do the same.
-        request_finished.disconnect(close_old_connections)
-        try:
-            body = b''.join(resp.streaming_content)
-            resp.close()
-        finally:
-            request_finished.connect(close_old_connections)
+        # Exhausting the stream makes the test client close the response (and
+        # the file handle, which Windows tempdir cleanup needs). Do not call
+        # resp.close() again: a second close re-fires request_finished with
+        # close_old_connections attached, which closes the PostgreSQL
+        # connection inside the test transaction and fails every later test
+        # in the class with "the connection is closed".
+        body = b''.join(resp.streaming_content)
         self.assertTrue(body.startswith(b'\xff\xd8'))
         self.client.logout()
         self.assertEqual(self.client.get(reverse('sampling:photo', args=[photo.pk])).status_code, 302)

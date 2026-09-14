@@ -28,7 +28,7 @@
   {% else %}<p style="color:#6b7566">None new since last week.</p>{% endif %}
 
   <h2 style="font-size:16px;margin:18px 0 6px">Moved up more than 7 days · {{ moved_up|length }}</h2>
-  {% if moved_up %}<ul style="margin:0;padding-left:18px">{% for shift, lot, pred, prev in moved_up %}<li><strong>{{ lot.lot_no }}</strong> {{ lot.grower.name }} · pack-by moved from {{ prev.pack_by_date|date:'M j' }} to {{ pred.pack_by_date|date:'M j' }} ({{ shift }} days earlier)</li>{% endfor %}</ul>
+  {% if moved_up %}<ul style="margin:0;padding-left:18px">{% for shift, lot, pred, prev in moved_up %}<li><strong>{{ lot.lot_no }}</strong> {{ lot.grower.name }} · pack-by moved from {{ prev.deadline_date|date:'M j' }} to {{ pred.deadline_date|date:'M j' }} ({{ shift }} days earlier)</li>{% endfor %}</ul>
   {% else %}<p style="color:#6b7566">No lot's pack-by moved up by more than a week.</p>{% endif %}
 
   <h2 style="font-size:16px;margin:18px 0 6px">Not sampled in {{ overdue_days }}+ days · {{ unsampled|length }}</h2>

@@ -58,12 +58,12 @@ def build_report(plant, today=None, settings=None, plan=None):
         pred = now_preds.get(lot.id)
         prev = prev_preds.get(lot.id)
         sample = samples.get(lot.id)
-        if pred and ranked[lot.pk]['dates_usable'] and pred.pack_by_date and (pred.pack_by_date - today).days <= 7:
-            to_pack.append((pred.pack_by_date, lot, pred, sample))
+        if pred and ranked[lot.pk]['dates_usable'] and pred.deadline_date and (pred.deadline_date - today).days <= 7:
+            to_pack.append((pred.deadline_date, lot, pred, sample))
         if pred and pred.decay_flag and not (prev and prev.decay_flag):
             new_decay.append((lot, pred, sample))
-        if pred and ranked[lot.pk]['dates_usable'] and prev and pred.pack_by_date and prev.pack_by_date:
-            shift = (prev.pack_by_date - pred.pack_by_date).days
+        if pred and ranked[lot.pk]['dates_usable'] and prev and pred.deadline_date and prev.deadline_date:
+            shift = (prev.deadline_date - pred.deadline_date).days
             if shift > 7:
                 moved_up.append((shift, lot, pred, prev))
         days_since = (today - sample.sampled_on).days if sample else lot.days_in_storage

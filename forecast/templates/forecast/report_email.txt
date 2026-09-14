@@ -16,7 +16,7 @@ NEW DECAY FLAGS ({{ new_decay|length }})
 {% empty %}  none
 {% endfor %}
 MOVED UP MORE THAN 7 DAYS ({{ moved_up|length }})
-{% for shift, lot, pred, prev in moved_up %}  {{ lot.lot_no }}  {{ prev.pack_by_date }} -> {{ pred.pack_by_date }} ({{ shift }} days earlier)
+{% for shift, lot, pred, prev in moved_up %}  {{ lot.lot_no }}  {{ prev.deadline_date }} -> {{ pred.deadline_date }} ({{ shift }} days earlier)
 {% empty %}  none
 {% endfor %}
 NOT SAMPLED IN {{ overdue_days }}+ DAYS ({{ unsampled|length }})

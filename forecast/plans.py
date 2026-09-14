@@ -74,6 +74,8 @@ def publish_plan(plant, today=None, user=None, source=PackPlan.Source.BOARD, set
                 action=action.code,
                 requires_decision=action.requires_decision,
                 pack_by_date=pred.pack_by_date if pred else None,
+                hold_until_date=pred.hold_until_date if pred else None,
+                deadline_kind=pred.deadline_kind if pred else '',
                 stage=pred.stage if pred else '',
                 cci_now=pred.cci_now if pred else None,
                 confidence=pred.confidence if pred else '',

@@ -768,6 +768,16 @@ class ModelSettings(models.Model):
         help_text='Scale prior degreening rates by the room setpoint using the bell-shaped temperature response (fastest near 15 °C, slow at 5 °C, halted near 25 °C). Fitted slopes are never scaled.',
     )
 
+    # Hold budget: how long a lot stays marketable at each color stage (trade
+    # ladder, NSW DPI: dark green 5-6 months, light green ~2 months, silver
+    # ~6 weeks, yellow weeks). Warm storage and observed decay spend it faster.
+    hold_days_dg = models.PositiveIntegerField(default=165, help_text='Hold budget in days for a dark green lot: how long it can stay marketable at that stage. Trade guidance: 5 to 6 months.')
+    hold_days_lg = models.PositiveIntegerField(default=60, help_text='Hold budget for a light green lot; about 2 months.')
+    hold_days_s = models.PositiveIntegerField(default=42, help_text='Hold budget for a silver lot; about 6 weeks.')
+    hold_days_y = models.PositiveIntegerField(default=14, help_text='Hold budget once a lot has turned yellow; weeks, not months.')
+    hold_warm_multiplier = models.FloatField(default=2.0, help_text='Each day in a room at or above the warm threshold spends this many days of hold budget. Lemons hold 4 to 6 months near 10 C but 1 to 2 months at 13 C.')
+    hold_decay_days_per_pct = models.FloatField(default=3.0, help_text='Hold budget days removed per percent decay observed in the recent samples.')
+
     class CorrectionMethod(models.TextChoices):
         LINEAR = 'linear', 'Linear 3x3 matrix on all nine patches'
         CURVE = 'curve', 'Per-channel grey-ramp curve, then linear matrix'
@@ -807,6 +817,13 @@ class ModelSettings(models.Model):
             errors['sample_fruit_count'] = 'Inspect between 1 and 100 fruit per sample.'
         if self.warm_weeks_flag < 1:
             errors['warm_weeks_flag'] = 'The warm-storage flag must be at least one week.'
+        for field in ('hold_days_dg', 'hold_days_lg', 'hold_days_s', 'hold_days_y'):
+            if getattr(self, field) < 1:
+                errors[field] = 'A hold budget must be at least one day.'
+        if self.hold_warm_multiplier < 1:
+            errors['hold_warm_multiplier'] = 'A warm day cannot spend less than one day of budget.'
+        if self.hold_decay_days_per_pct < 0:
+            errors['hold_decay_days_per_pct'] = 'The decay penalty cannot be negative.'
         if errors:
             raise ValidationError(errors)
 
@@ -850,3 +867,12 @@ class ModelSettings(models.Model):
 
     def thresholds_dict(self):
         return {'dg_max': self.cci_dg_max, 'lg_max': self.cci_lg_max, 's_max': self.cci_s_max}
+
+    def hold_days(self, stage):
+        """Hold budget in days for a lot at the given color stage."""
+        return {
+            Color.DARK_GREEN: self.hold_days_dg,
+            Color.LIGHT_GREEN: self.hold_days_lg,
+            Color.SILVER: self.hold_days_s,
+            Color.YELLOW: self.hold_days_y,
+        }.get(stage, self.hold_days_y)

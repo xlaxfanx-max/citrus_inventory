@@ -59,7 +59,7 @@
       <td><a href="{% url 'lots:lot_detail' r.rec.lot.pk %}"><strong>{{ r.rec.lot.lot_no }}</strong></a><br><span class="small muted">{{ r.rec.lot.grower.name }}{% if r.rec.lot.block %} · {{ r.rec.lot.block }}{% endif %}</span></td>
       <td>{% if r.rec.bins_remaining is not None %}<strong>{{ r.rec.bins_remaining|floatformat:0 }} bins</strong>{% else %}<span class="flag amber">quantity unknown</span>{% endif %}<br><span class="muted small">{{ r.rec.room_name|default:'No room' }} · {{ r.rec.days_in_storage }} d stored</span></td>
       <td>{% if r.rec.stage %}<span class="chip {{ r.rec.stage }}">{{ r.rec.get_stage_display }}</span> {{ r.rec.cci_now|floatformat:1 }}{% if r.rec.decay_flag %} <span class="flag red">decay</span>{% endif %}<br><span class="muted small">{{ r.rec.support_label }}</span>{% else %}<span class="muted">no forecast</span>{% endif %}</td>
-      <td>{% if r.rec.pack_by_date %}<strong>{{ r.rec.pack_by_date|date:'M j' }}</strong>{% else %}—{% endif %}</td>
+      <td>{% if r.rec.deadline_date %}<strong>{{ r.rec.deadline_date|date:'M j' }}</strong>{% if r.rec.deadline_kind == 'hold' %}<br><span class="muted small">hold ends</span>{% endif %}{% else %}—{% endif %}</td>
       <td class="decision-cell">{% include 'forecast/_decision_cell.html' %}</td>
       <td>{% include 'forecast/_outcome.html' %}</td>
     </tr>
@@ -79,7 +79,7 @@
     </div>
     <div class="meta-grid">
       <div><span class="metric-label">Inventory</span><span class="metric-value">{% if r.rec.bins_remaining is not None %}{{ r.rec.bins_remaining|floatformat:0 }} bins{% else %}Unknown{% endif %}</span><span class="muted small">{{ r.rec.room_name|default:'No room' }} · {{ r.rec.days_in_storage }} d</span></div>
-      <div><span class="metric-label">Pack by</span><span class="metric-value">{% if r.rec.pack_by_date %}{{ r.rec.pack_by_date|date:'M j' }}{% else %}—{% endif %}</span></div>
+      <div><span class="metric-label">{% if r.rec.deadline_kind == 'hold' %}Hold ends{% else %}Pack by{% endif %}</span><span class="metric-value">{% if r.rec.deadline_date %}{{ r.rec.deadline_date|date:'M j' }}{% else %}—{% endif %}</span></div>
       <div><span class="metric-label">Signal</span><span class="metric-value">CCI {{ r.rec.cci_now|floatformat:1 }}{% if r.rec.decay_flag %} · decay{% endif %}</span><span class="muted small">{{ r.rec.support_label }}</span></div>
       <div><span class="metric-label">Outcome</span><span class="metric-value">{% include 'forecast/_outcome.html' %}</span></div>
     </div>
@@ -102,7 +102,7 @@
         <td><a href="{% url 'lots:lot_detail' r.rec.lot.pk %}">{{ r.rec.lot.lot_no }}</a> <span class="small muted">{{ r.rec.lot.grower.name }}</span></td>
         <td>{% if r.rec.bins_remaining is not None %}{{ r.rec.bins_remaining|floatformat:0 }} bins{% else %}<span class="muted">unknown</span>{% endif %} <span class="muted small">· {{ r.rec.room_name|default:'No room' }}</span></td>
         <td>{% if r.rec.stage %}<span class="chip {{ r.rec.stage }}">{{ r.rec.get_stage_display }}</span> {{ r.rec.cci_now|floatformat:1 }} <span class="muted small">{{ r.rec.support_label }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td>{{ r.rec.pack_by_date|date:'M j'|default:'—' }}{% for note in r.rec.evidence_notes %}<p class="muted small">{{ note }}</p>{% endfor %}</td>
+        <td>{{ r.rec.deadline_date|date:'M j'|default:'—' }}{% if r.rec.deadline_kind == 'hold' %} <span class="muted small">hold</span>{% endif %}{% for note in r.rec.evidence_notes %}<p class="muted small">{{ note }}</p>{% endfor %}</td>
         <td>{% if r.outcome.status == 'packed' %}Packed {{ r.outcome.date|date:'M j' }}{% elif r.outcome.status == 'dumped' %}Dumped{% else %}<span class="muted">In storage</span>{% endif %}</td>
       </tr>
     {% endif %}{% endfor %}

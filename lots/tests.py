@@ -510,7 +510,8 @@ class ViewAccessTests(Base):
             'cci_dg_max', 'cci_lg_max', 'cci_s_max', 'prior_drift_dg', 'prior_drift_lg', 'prior_drift_s', 'prior_drift_y',
             'start_cci_dg', 'start_cci_lg', 'start_cci_s', 'start_cci_y', 'buffer_days', 'decay_flag_pct',
             'min_fruit_for_score', 'max_horizon_days', 'sample_overdue_days', 'import_gap_days',
-            'sample_fruit_count', 'warm_storage_temp_c', 'warm_weeks_flag', 'temperature_response', 'color_correction_method']}
+            'sample_fruit_count', 'warm_storage_temp_c', 'warm_weeks_flag', 'temperature_response', 'color_correction_method',
+            'hold_days_dg', 'hold_days_lg', 'hold_days_s', 'hold_days_y', 'hold_warm_multiplier', 'hold_decay_days_per_pct']}
         post['buffer_days'] = 10
         post.update({'plants-TOTAL_FORMS': '2', 'plants-INITIAL_FORMS': '2', 'plants-MIN_NUM_FORMS': '0', 'plants-MAX_NUM_FORMS': '1000',
                      'plants-0-id': self.sla1.pk, 'plants-0-report_recipients': 'gm@example.com',

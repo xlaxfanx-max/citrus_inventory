@@ -1,0 +1,270 @@
+<title>Lemon Tracker Review, September 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --ground: #f7f8f4; --paper: #ffffff; --ink: #1c231d; --muted: #5b665c; --line: #d6dcd3; --line-soft: #e8ece5;
+    --accent: #2f5a3a; --accent-ink: #ffffff; --accent-soft: #e7efe6;
+    --lemon: #d9b52e; --lemon-soft: #fbf4d6;
+    --alert: #a03629; --alert-soft: #fbeeec; --warn: #7a5a1c; --warn-soft: #fbf5e3; --ok: #395c3d;
+    --dg: #365b37; --lg: #81a15c; --s: #b9c3a7; --y: #d6b533;
+    --display: "Fraunces", Georgia, "Times New Roman", serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #141a15; --paper: #1b221c; --ink: #e6ebe3; --muted: #9caa9d; --line: #344036; --line-soft: #273028;
+      --accent: #8fbf94; --accent-ink: #10190f; --accent-soft: #223126;
+      --lemon: #e2c24a; --lemon-soft: #35301a;
+      --alert: #e08a7e; --alert-soft: #3a2320; --warn: #d9b46a; --warn-soft: #332b19; --ok: #9dc59f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #141a15; --paper: #1b221c; --ink: #e6ebe3; --muted: #9caa9d; --line: #344036; --line-soft: #273028;
+    --accent: #8fbf94; --accent-ink: #10190f; --accent-soft: #223126;
+    --lemon: #e2c24a; --lemon-soft: #35301a;
+    --alert: #e08a7e; --alert-soft: #3a2320; --warn: #d9b46a; --warn-soft: #332b19; --ok: #9dc59f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--lemon); outline-offset: 3px; }
+  .shell { max-width: 1180px; margin: 0 auto; padding: 0 24px 80px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 48px; }
+  @media (min-width: 1040px) { .shell { grid-template-columns: minmax(0, 1fr) 220px; } .rail { display: block; } }
+  .rail { display: none; position: sticky; top: 28px; align-self: start; margin-top: 208px; font-size: 14px; }
+  .rail ol { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+  .rail li a { display: block; padding: 6px 0 6px 14px; color: var(--muted); text-decoration: none; }
+  .rail li a:hover { color: var(--ink); }
+  .rail .rail-label { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+
+  header.masthead { padding: 56px 0 28px; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+  h1 { font-family: var(--display); font-weight: 500; font-size: clamp(34px, 4.6vw, 52px); line-height: 1.08; letter-spacing: -.01em; margin: 0 0 18px; text-wrap: balance; font-variation-settings: "opsz" 144; }
+  .standfirst { font-size: 20px; max-width: 62ch; margin: 0 0 22px; color: var(--ink); }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: 14px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  h2 { font-family: var(--display); font-weight: 500; font-size: 30px; line-height: 1.15; margin: 58px 0 6px; text-wrap: balance; font-variation-settings: "opsz" 72; }
+  h2 + .lede { margin-top: 0; }
+  h3 { font-size: 18px; font-weight: 600; margin: 34px 0 10px; }
+  p, li { max-width: 68ch; }
+  .lede { color: var(--muted); font-size: 17px; margin: 4px 0 18px; }
+  ul { padding-left: 22px; } li { margin: 6px 0; }
+  code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .88em; background: var(--line-soft); padding: 1px 5px; border-radius: 3px; }
+
+  .verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0; border: 1px solid var(--line); background: var(--paper); margin: 30px 0 0; }
+  .verdict > div { padding: 18px 20px; border-right: 1px solid var(--line); }
+  .verdict > div:last-child { border-right: 0; }
+  @media (max-width: 720px) { .verdict > div { border-right: 0; border-bottom: 1px solid var(--line); } .verdict > div:last-child { border-bottom: 0; } }
+  .verdict .k { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .verdict .v { font-family: var(--display); font-size: 26px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .verdict .v.good { color: var(--ok); } .verdict .v.warn { color: var(--warn); } .verdict .v.bad { color: var(--alert); }
+  .verdict small { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  .callout { border-left: 4px solid var(--lemon); background: var(--lemon-soft); padding: 14px 18px; margin: 22px 0; max-width: 72ch; }
+  .callout p { margin: 0; }
+  .callout b { font-weight: 600; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--paper); margin: 16px 0 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); }
+  th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--ground); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n { white-space: nowrap; color: var(--muted); font-weight: 600; }
+  td .file { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--muted); }
+  .tight td { padding: 8px 12px; }
+
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .04em; padding: 2px 8px; border-radius: 2px; white-space: nowrap; }
+  .tag.s { background: var(--accent-soft); color: var(--accent); }
+  .tag.m { background: var(--warn-soft); color: var(--warn); }
+  .tag.l { background: var(--alert-soft); color: var(--alert); }
+  .tag.open { background: var(--alert-soft); color: var(--alert); }
+  .tag.fixed { background: var(--accent-soft); color: var(--ok); }
+  .tag.date { background: var(--lemon-soft); color: var(--warn); }
+
+  .ladder { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 18px 0 6px; max-width: 720px; }
+  .ladder div { padding: 12px 12px 10px; border-top: 8px solid; background: var(--paper); border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .ladder .dg { border-top-color: var(--dg); } .ladder .lg { border-top-color: var(--lg); } .ladder .s { border-top-color: var(--s); } .ladder .y { border-top-color: var(--y); }
+  .ladder b { display: block; font-size: 14px; }
+  .ladder span { display: block; font-size: 13px; color: var(--muted); }
+  .ladder-note { font-size: 13px; color: var(--muted); margin-top: 4px; max-width: 720px; }
+  @media (max-width: 560px) { .ladder { grid-template-columns: 1fr 1fr; } }
+
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px 32px; margin-top: 12px; }
+  .cols h3 { margin-top: 8px; }
+  .cols p { font-size: 15.5px; }
+
+  .src { font-size: 13px; color: var(--muted); }
+  footer.end { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="shell">
+<main>
+<header class="masthead">
+  <p class="eyebrow">Lemon Tracker · Saticoy pilot · Review of 7 September 2026</p>
+  <h1>The shell is ready for a demo. The roadmap needs a colder model, a bigger sample, and Spanish.</h1>
+  <p class="standfirst">Two design commits since 6 September were reviewed in the browser on desktop and phone as the GM and the foreman, and three outside-research passes were run on Saticoy and the lemon market, on competing products, and on pilot structure, funding, workforce and postharvest science.</p>
+  <div class="meta"><span>Commits <b>a19b800</b>, <b>5972384</b></span><span>Tests <b>111 passed</b></span><span>Screens walked <b>11</b></span><span>Research sources <b>~150 fetched</b></span></div>
+  <div class="verdict">
+    <div><span class="k">Software</span><span class="v good">Demo-ready</span><small>Checks clean, no console errors, consistent shell</small></div>
+    <div><span class="k">UX review carry-over</span><span class="v warn">6 items open</span><small>3 sit on the daily foreman and Monday GM paths</small></div>
+    <div><span class="k">Model and protocol</span><span class="v bad">Change before pilot</span><small>Temperature-band forecast, decay clock, 25-fruit sample</small></div>
+    <div><span class="k">Nearest deadline</span><span class="v warn">21 Sep 2026</span><small>CDFA Specialty Crop Block Grant 2027 concept proposals</small></div>
+  </div>
+</header>
+
+<h2 id="product">1. State of the product</h2>
+<p class="lede">What the last two commits did, and what the 6 September review still owes.</p>
+
+<h3>Verified today</h3>
+<div class="table-wrap"><table class="tight">
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Working tree</td><td>Clean. All changes are the two design commits.</td></tr>
+<tr><td>Tests</td><td>111 passed in 43.5 s on SQLite after <code>collectstatic</code>.</td></tr>
+<tr><td>Django checks, migrations</td><td>No issues, no missing migrations.</td></tr>
+<tr><td>Browser walk-through</td><td>GM at 1300 px and 375 px, foreman at 375 px. Board, plan list, plan detail, lot detail, readiness, validation, imports, sample route, capture, login, menu.</td></tr>
+<tr><td>Console</td><td>No application errors.</td></tr>
+</tbody></table></div>
+
+<h3>What the two commits got right</h3>
+<ul>
+  <li>One stylesheet and one script replace the CSS that lived inside <code>base.html</code>. Print, reduced motion, 44 px targets and 16 px phone inputs are covered. Tests now use the static manifest, and the README says so.</li>
+  <li>The new header closes the phone-navigation bug from the last review: role-aware menu, account and role label, skip link, Escape and outside-click close, <code>aria-current</code>.</li>
+  <li>The disclaimer collapsed to one line. The summary tiles are now the filters. Room selection is validated against the plant, with a test. Changing plant clears the room and submits.</li>
+  <li>Phone lot cards show the stage name instead of the code. Row actions carry labels. Evidence notes collapse. The empty state is role-aware.</li>
+  <li>The sample-route search moved to its own script with abort and sequence guards, an inert list while loading, a live status line, and a test that search never disturbs the day's route progress.</li>
+  <li>Capture accepts "Today". Imports and login got proper headings, help text and download buttons.</li>
+</ul>
+
+<h3>Still open from the 6 September review</h3>
+<p>Each of these was confirmed in the browser today.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Item</th><th>Where</th><th>Seen today</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td class="n">B2</td><td>Lot detail</td><td>Lot 26-1013 shows "Jun 17" in plain black. The board calls it 82 days overdue. The tile still tests <code>timeuntil == '0 minutes'</code>. <span class="file">lots/templates/lots/lot_detail.html:23</span></td><td>Pass overdue days from the view and tone the tile like the board row.</td></tr>
+<tr><td class="n">B4</td><td>Capture</td><td>Submitting with nothing chosen focuses an invisible radio and renders zero error elements.</td><td>On submit, mark incomplete steps and scroll to the first.</td></tr>
+<tr><td class="n">B6</td><td>Everywhere bins appear</td><td>"661.0 known bins", "154.0 bins".</td><td>Whole numbers unless fractional bins are real.</td></tr>
+<tr><td class="n">P1</td><td>Board, phone</td><td>First lot card starts about 890 px down (was 1080). The filter bar keeps a full-width Apply although plant and room submit on change. The chip row duplicates the tiles.</td><td>Drop Apply when scripts run. Keep tiles or chips, not both.</td></tr>
+<tr><td class="n">P2</td><td>Plan detail</td><td>Each of 16 undecided rows needs open, pick status, pick reason, save, reload. On phone the eight-column table scrolls sideways and the decision column is off-screen.</td><td>One-tap Accept, "Accept all remaining", phone cards, save in place.</td></tr>
+<tr><td class="n">P3</td><td>Capture</td><td>Native file input visible inside the dashed box. Calibration select and two help paragraphs sit above the photo button. Route list mixes "1.6 wk" and "11d since check".</td><td>Hide the input, put help behind a toggle, one unit.</td></tr>
+<tr><td class="n">P4</td><td>Lot detail</td><td>Nine-item metadata run-on wraps to three lines on phone. Samples table prints "D 2 · soft 0 · shrivel 0 · chill 0 · rind 0". Room interval prints <code>2026-05-31T00:00:00-07:00</code> and "exclusive".</td><td>Key/value grid, non-zero counts only, formatted dates.</td></tr>
+<tr><td class="n">B5</td><td>Stylesheet</td><td>Sticky table headers inside the horizontal-scroll wrapper never stick.</td><td>Remove the rule.</td></tr>
+</tbody></table></div>
+
+<h3>New observations</h3>
+<ul>
+  <li>The brand and footer hardcode "Saticoy". Fine for the pilot, a setting before a second customer.</li>
+  <li>The desktop "Known bins due · 7 days" tile lost its red tone in the redesign. It is the number the GM plans capacity against.</li>
+  <li>Readiness reports zero calibration setups but does not link an admin to register a station.</li>
+  <li>Validation reports zero direct packout labels on 14 packed lots. The only way to add one is the packout CSV; QC has no screen.</li>
+  <li>Plan detail on phone spends a full screen on KPI tiles before the first recommendation.</li>
+  <li>The photo input already opens the camera directly on phones. Good.</li>
+</ul>
+
+<h2 id="research">2. What the outside research says</h2>
+<p class="lede">Three agents, about 150 pages read, every claim sourced in the appendix. Inferences are marked as such.</p>
+
+<div class="cols">
+  <div>
+    <h3>Saticoy and the market</h3>
+    <p><b>Saticoy is signalling modernisation.</b> CFO Laura Troost was profiled in April 2026 as leading "modernizing legacy processes" and integrating accounting, operations and IT. CEO Marty Coert came up through operations. Saticoy's own plant-manager posting defines the job as managing storage "to meet company standards for quality, size, and color".</p>
+    <p><b>The market flipped in August 2026.</b> June pricing passed $20 a carton for the first time since 2018, then Argentina and Chile shipped roughly double the planned volume and the spot market went to oversupply within weeks. Argentine imports are about twelve times their 2018 level and the 10 % tariff stayed. The pilot goes live in that environment.</p>
+    <p><b>Limoneira is the public proxy.</b> Packing cost per carton swings from about $9 in high-volume quarters to $13 to $14.50 in low-volume quarters, so smoothing weekly volume has value on its own. Limoneira rejoined Sunkist in November 2025 and reports on 9 September. No public source gives a juice-lemon price; it has to come from Famous.</p>
+    <p><b>Decay is documented.</b> UC Riverside found high sour rot on propiconazole-treated lemons stored for extended periods in California houses, with fungicide resistance.</p>
+  </div>
+  <div>
+    <h3>Competitors and adjacent products</h3>
+    <p><b>Nobody forecasts citrus colour over time.</b> FreshCloud Storage and Strella are ethylene products for apples and pears. OneThird is near-infrared and skips citrus. Clarifresh, the incumbent QC app, has no shelf-life or ripeness prediction anywhere on its integration page.</p>
+    <p><b>Clarifresh is the capture tool to learn from:</b> barcode scan that fills lot metadata from the ERP, several photos per defect, mandatory-field validation, six languages including Spanish, results pushed back to the ERP. Its adoption lesson: mirror the paper form the crew already uses.</p>
+    <p><b>Famous has no public API.</b> It sells EDI, a QC tablet app, and Famous BI with scheduled delivery and conditional alerts. CSV plus scheduled BI exports is the realistic path, and the Monday email has to add forecasts to be read.</p>
+    <p><b>Phone colour science moved in 2026.</b> A card with an 8×8 palette, four ArUco corners and histogram matching took class accuracy from 56 % to 100 %, but a glossy card fell to 19 to 25 %. White-balance mode, device and lighting interact.</p>
+  </div>
+  <div>
+    <h3>Pilot, funding, workforce, science</h3>
+    <p><b>Charge for the pilot.</b> Paid pilots convert at 40 to 60 % against under 10 % for free trials. A 2026 specialty-crop example charges $10k and refunds if the grower cannot find twice that in savings. In a co-op, software is a house cost inside the per-carton packing charge: $20k a plant on a million cartons is about two cents a carton.</p>
+    <p><b>Funding calendar.</b> CDFA Specialty Crop Block Grant 2027 concepts close 21 September 2026 and need a UC or nonprofit applicant. Citrus Research Board pre-proposals run in March; its post-harvest category wants "a clear path to commercialization". UC Lindcove has a packline with a Compac grader and a fruit-quality lab bookable by form.</p>
+    <p><b>Science that changes the model.</b> Degreening is bell-shaped in temperature: fastest near 15 °C, slower at 5 °C, halted at 25 °C, and independent of ethylene. Storage life is 4 to 6 months at 10 °C but 1 to 2 months at 13 °C with high rot after three. Past about 120 days, colour is a late signal; firmness and weight loss track better.</p>
+    <p><b>Sample and workforce.</b> USDA lemon inspection requires at least 25 fruit per sample. Ten fruit find a 5 % decay lot about 40 % of the time; 25 fruit about 72 %. 57 % of crop workers are Spanish-primary and 27 % speak no English, but 96 % carry a phone with internet.</p>
+  </div>
+</div>
+
+<h3>The hold budget the model has to respect</h3>
+<div class="ladder">
+  <div class="dg"><b>Dark green</b><span>5 to 6 months at 10 °C</span></div>
+  <div class="lg"><b>Light green</b><span>about 2 months</span></div>
+  <div class="s"><b>Silver</b><span>about 6 weeks</span></div>
+  <div class="y"><b>Yellow</b><span>weeks; sell trigger at 5 % decay</span></div>
+</div>
+<p class="ladder-note">Trade ladder from NSW DPI and the August research. The rate between rungs is set by room temperature, not by a constant, which is why the linear forecast with a fixed buffer needs a temperature band per room and a separate decay clock for weeks spent at or above 13 °C.</p>
+
+<h2 id="improvements">3. Ranked improvements</h2>
+<p class="lede">Effort: S under a day, M a few days, L a sprint or more.</p>
+
+<h3>A. Before the mid-October go-live</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Improvement</th><th>Why now</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td class="n">A1</td><td>One-tap Accept per recommendation, "Accept all remaining", phone cards, save in place.</td><td>The scorecard targets 95 % of recommendations with a recorded decision; the demo plan sits at 6 %. Every Monday costs the GM 16 open, pick, save, reload cycles.</td><td><span class="tag m">M</span></td></tr>
+<tr><td class="n">A2</td><td>Capture: visible step errors, hidden file input, help behind a toggle, station remembered per device.</td><td>The foreman path is the model's only input. A silent refusal to submit loses a sample.</td><td><span class="tag s">S</span></td></tr>
+<tr><td class="n">A3</td><td>Spanish as the default for foreman screens, with an English toggle.</td><td>57 % Spanish-primary workforce. Clarifresh already ships Spanish. Django i18n and about 120 strings.</td><td><span class="tag m">M</span></td></tr>
+<tr><td class="n">A4</td><td>Log time from capture open to submit per sample, and show it on Readiness.</td><td>The scorecard target is a 90-second median. Nothing measures it today.</td><td><span class="tag s">S</span></td></tr>
+<tr><td class="n">A5</td><td>Configurable fruit count, default 25, with a "double the sample" prompt when a tolerance is exceeded.</td><td>Ten fruit is below the USDA floor and misses a 5 % decay lot six times in ten. Keep 10 as a recorded fallback.</td><td><span class="tag m">M</span></td></tr>
+<tr><td class="n">A6</td><td>Room setpoint on each room, a degreening rate per temperature band, and a separate decay clock for weeks at or above 13 °C, shown on the board beside colour.</td><td>A linear CCI line with a fixed buffer is wrong across rooms. Sour rot on long-stored fruit is documented in California.</td><td><span class="tag m">M</span> <span class="tag l">L</span></td></tr>
+<tr><td class="n">A7</td><td>Board and calibration: matte stock, white-balance mode and device model stored per photo, reject frames missing a marker, histogram matching as a scoring option.</td><td>Glossy cards dropped accuracy to 19 to 25 % in the 2026 study. White-balance interactions were significant in 2018.</td><td><span class="tag m">M</span></td></tr>
+<tr><td class="n">A8</td><td>Market-regime flag on plan publish, recorded with every decision: tight, normal, oversupplied.</td><td>The August flip shows weekly market context changes the right defer-or-pack call. Without it the decision log cannot be read later.</td><td><span class="tag s">S</span></td></tr>
+<tr><td class="n">A9</td><td>Lot detail fixes: overdue tone, whole bins, key/value metadata, non-zero defect counts, formatted room intervals.</td><td>Cheap, and it is the page the GM opens to check a recommendation.</td><td><span class="tag s">S</span></td></tr>
+<tr><td class="n">A10</td><td>"Register a station" link on Readiness, and a QC screen to record final packout quality.</td><td>Zero calibration records and zero direct labels are the two readiness gaps. Both need Admin or a CSV today.</td><td><span class="tag s">S</span> <span class="tag m">M</span></td></tr>
+</tbody></table></div>
+
+<h3>B. During the pilot, weeks 3 to 10</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Improvement</th><th>Why</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td class="n">B1</td><td>Lot QR or barcode scan that fills lot, grower, room and receipt date.</td><td>Wrong lot ID is the largest foreman error source. Clarifresh treats scan as table stakes.</td><td><span class="tag m">M</span></td></tr>
+<tr><td class="n">B2</td><td>Offline queue with capture-time timestamps and automatic background sync.</td><td>Cold rooms have poor signal. Phase 1 item 5 in the action plan.</td><td><span class="tag l">L</span></td></tr>
+<tr><td class="n">B3</td><td>Headline shift to "pack sequence" and "days remaining ± band". CCI moves to technical details.</td><td>Strella owns the sequence framing. GMs read days faster than an index, and it gives a measurable accuracy figure.</td><td><span class="tag s">S</span> <span class="tag m">M</span></td></tr>
+<tr><td class="n">B4</td><td>Conditional alerts by email or text, for example "lot crosses threshold in 5 days", alongside the Monday report.</td><td>Famous BI already delivers scheduled reports. Ours must add forecast to be read.</td><td><span class="tag m">M</span></td></tr>
+<tr><td class="n">B5</td><td>Firmness or weight-loss spot check for lots stored over 120 days.</td><td>Colour is a late indicator on long-stored Eureka. The fields already exist.</td><td><span class="tag s">S</span></td></tr>
+<tr><td class="n">B6</td><td>Tenant name from settings.</td><td>Needed before Limoneira or any second site.</td><td><span class="tag s">S</span></td></tr>
+</tbody></table></div>
+
+<h3>C. Commercial and validation actions, no code</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Action</th><th>When</th></tr></thead>
+<tbody>
+<tr><td class="n">C1</td><td>Convert the pilot MOU to a paid, refundable-on-miss agreement, about $8k to $12k per plant, refunded if the GM cannot attribute twice that in avoided regrades or shrink. Price per plant with a usage floor. Pitch in cents per carton.</td><td>Before go-live</td></tr>
+<tr><td class="n">C2</td><td>CDFA Specialty Crop Block Grant 2027 concept proposal with a UC partner as applicant.</td><td><span class="tag date">21 Sep 2026, 9 a.m. PT</span></td></tr>
+<tr><td class="n">C3</td><td>Email Citrus Research Board staff to pre-position a March 2027 post-harvest-technology pre-proposal with a UC co-investigator.</td><td>October 2026</td></tr>
+<tr><td class="n">C4</td><td>Book UC Lindcove's packline and fruit-quality lab for a phone-versus-grader benchmark on about 300 fruit across three colour classes.</td><td>Before evaluation sampling</td></tr>
+<tr><td class="n">C5</td><td>Pull Saticoy's products return per carton from Famous. It is not public and it is the single most important ROI input. Use $18.50 to $23 fresh FOB as the 2025 to 2026 range.</td><td>Phase 0</td></tr>
+<tr><td class="n">C6</td><td>Brief CFO Laura Troost as executive sponsor with the decision record as the "trust-based systems" story. Brief the plant manager with their own job description.</td><td>Meeting prep</td></tr>
+<tr><td class="n">C7</td><td>Read Limoneira's Q3 FY2026 results. If pricing collapsed after August, pivot the ROI story to protecting fresh share in an oversupplied market.</td><td><span class="tag date">9 Sep 2026</span></td></tr>
+<tr><td class="n">C8</td><td>Open the Limoneira Santa Paula conversation as the second, independent site.</td><td>Q4 2026</td></tr>
+<tr><td class="n">C9</td><td>Ask Sunkist or Sienz whether Sunsortai per-run colour grades can be exported per lot. That is packout truth for the model.</td><td>House meeting</td></tr>
+</tbody></table></div>
+
+<div class="callout"><p><b>If only three things happen before October:</b> A1 so the GM actually records decisions, A5 and A6 so the numbers the pilot produces can be defended, and C2 because the grant window closes in two weeks.</p></div>
+
+<h2 id="caveats">4. Caveats</h2>
+<ul>
+  <li>The Packer, FreshPlaza, Capterra and Clarifresh's pricing page blocked automated reading. Facts from them come from search snippets and are marked in the appendix. An hour reading The Packer and FreshPlaza 2026 lemon coverage by hand is worth it before the pitch.</li>
+  <li>Limoneira's Q4 FY2025 release carried internally inconsistent full-year figures. The numbers used are the ones that reconcile with the 10-K.</li>
+  <li>Vendor pages establish advertised capabilities, not verified performance.</li>
+  <li>Local demo accounts were given a temporary password for the walk-through; nothing else in the database was changed.</li>
+</ul>
+
+<footer class="end">Repo copies: <code>docs/product-review-and-research-2026-09-07.md</code> and the full cited appendix <code>docs/research-appendix-2026-09-07.md</code>. Earlier context: the 5 September independent evaluation, the 6 September UI/UX review, and the August maturation research.</footer>
+</main>
+
+<aside class="rail" aria-label="Contents">
+  <span class="rail-label">Contents</span>
+  <ol>
+    <li><a href="#product">1. State of the product</a></li>
+    <li><a href="#research">2. Outside research</a></li>
+    <li><a href="#improvements">3. Ranked improvements</a></li>
+    <li><a href="#caveats">4. Caveats</a></li>
+  </ol>
+</aside>
+</div>

@@ -2,6 +2,10 @@
 
 Columns: plant_code, lot_no, room, moved_at
 
+The CSV column is `moved_at` because it accepts either a date or a full
+timestamp; the model stores the date as `moved_on` and the timestamp, when
+given, as `occurred_at`.
+
 Rooms that don't exist yet are created on the plant. A move that already
 exists (same lot, room, date) is a no-op. The lot's current_room follows
 its most recent move.
@@ -29,7 +33,7 @@ def parse_row(row):
         'plant_code': require(row, 'plant_code').upper(),
         'lot_no': require(row, 'lot_no'),
         'room': require(row, 'room')[:50],
-        'moved_at': day,
+        'moved_on': day,
         'occurred_at': occurred_at,
     }
 
@@ -63,21 +67,21 @@ def run(rows, batch=None):
         if lot is None:
             errors.append({'row': i, 'error': f'unknown lot {d["plant_code"]} {d["lot_no"]} (import receiving first)'})
             continue
-        if d['moved_at'] < lot.receive_date:
-            errors.append({'row': i, 'error': f'moved_at {d["moved_at"]} is before receive_date {lot.receive_date}'})
+        if d['moved_on'] < lot.receive_date:
+            errors.append({'row': i, 'error': f'moved_at {d["moved_on"]} is before receive_date {lot.receive_date}'})
             continue
-        if lot.packed_date and d['moved_at'] > lot.packed_date:
-            errors.append({'row': i, 'error': f'moved_at {d["moved_at"]} is after final packout {lot.packed_date}'})
+        if lot.packed_date and d['moved_on'] > lot.packed_date:
+            errors.append({'row': i, 'error': f'moved_at {d["moved_on"]} is after final packout {lot.packed_date}'})
             continue
         room = rooms.get((plant.id, d['room']))
         if room is None:
             room = Room.objects.create(plant=plant, name=d['room'])
             rooms[(plant.id, d['room'])] = room
-        LotRoomMove.objects.get_or_create(lot=lot, room=room, moved_at=d['moved_at'], occurred_at=d['occurred_at'])
+        LotRoomMove.objects.get_or_create(lot=lot, room=room, moved_on=d['moved_on'], occurred_at=d['occurred_at'])
         ok += 1
         prev = latest.get(lot.pk)
-        if prev is None or d['moved_at'] >= prev[0]:
-            latest[lot.pk] = (d['moved_at'], room, lot)
+        if prev is None or d['moved_on'] >= prev[0]:
+            latest[lot.pk] = (d['moved_on'], room, lot)
 
     for when, room, lot in latest.values():
         newest = max(lot.room_moves.select_related('room'), key=lambda move: (move.effective_at, move.pk), default=None)

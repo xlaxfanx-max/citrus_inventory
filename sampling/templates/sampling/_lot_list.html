@@ -1,33 +1,33 @@
-{% if query %}
-<h3>Matches for “{{ query }}” ({{ rows|length }})</h3>
+{% load i18n %}{% if query %}
+<h3>{% blocktrans with q=query n=rows|length %}Matches for “{{ q }}” ({{ n }}){% endblocktrans %}</h3>
 <ul class="lotlist">
   {% for r in rows %}
   <li{% if r.done_today %} class="done"{% endif %}><a href="{% url 'sampling:capture' r.lot.pk %}">
     <span class="no">{{ r.lot.lot_no }}</span>
-    <span class="meta">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}<br>{{ r.lot.current_room|default:'No room' }} · {% if r.last %}last check {{ r.days_since }}d ago{% else %}never checked{% endif %}</span>
-    {% if r.done_today %}<span class="flag ok">Done</span>{% elif r.needs_sample %}<span class="flag amber">Due</span>{% else %}<span class="flag grey">Up to date</span>{% endif %}
+    <span class="meta">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}<br>{{ r.lot.current_room|default:_('No room') }} · {% if r.last %}{% blocktrans with d=r.days_since %}last check {{ d }}d ago{% endblocktrans %}{% else %}{% trans "never checked" %}{% endif %}</span>
+    {% if r.done_today %}<span class="flag ok">{% trans "Done" %}</span>{% elif r.needs_sample %}<span class="flag amber">{% trans "Due" %}</span>{% else %}<span class="flag grey">{% trans "Up to date" %}</span>{% endif %}
   </a></li>
   {% empty %}
-  <li class="muted" style="padding:1rem">No lots in storage match.</li>
+  <li class="muted" style="padding:1rem">{% trans "No lots in storage match." %}</li>
   {% endfor %}
 </ul>
 {% else %}
-<h3>Needs a check ({{ due_rows|length }})</h3>
+<h3>{% blocktrans with n=due_rows|length %}Needs a check ({{ n }}){% endblocktrans %}</h3>
 <ul class="lotlist">
   {% for r in due_rows %}
   <li><a href="{% url 'sampling:capture' r.lot.pk %}">
     <span class="no">{{ r.lot.lot_no }}</span>
-    <span class="meta">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}<br>{{ r.lot.current_room|default:'No room' }} · {% if r.last %}last check {{ r.days_since }}d ago{% else %}<strong>never sampled</strong>{% endif %}</span>
-    <span class="weeks">{% if r.last %}{{ r.days_since }}d since check{% else %}{{ r.lot.weeks_in_storage }} wk{% endif %}</span>
+    <span class="meta">{{ r.lot.grower.name }}{% if r.lot.block %} · {{ r.lot.block }}{% endif %}<br>{{ r.lot.current_room|default:_('No room') }} · {% if r.last %}{% blocktrans with d=r.days_since %}last check {{ d }}d ago{% endblocktrans %}{% else %}<strong>{% trans "never sampled" %}</strong>{% endif %}</span>
+    <span class="weeks">{% if r.last %}{% blocktrans with d=r.days_since %}{{ d }}d since check{% endblocktrans %}{% else %}{% blocktrans with w=r.lot.weeks_in_storage %}never · {{ w }} wk stored{% endblocktrans %}{% endif %}</span>
   </a></li>
-  {% empty %}<li class="card muted">Nothing else is due today.</li>{% endfor %}
+  {% empty %}<li class="card muted">{% trans "Nothing else is due today." %}</li>{% endfor %}
 </ul>
 
-{% if done_today %}<details class="route-section"><summary>Sampled today ({{ done_today|length }})</summary>
-  <ul class="lotlist">{% for r in done_today %}<li class="done"><a href="{% url 'sampling:capture' r.lot.pk %}"><span class="no">{{ r.lot.lot_no }}</span><span class="meta">{{ r.lot.grower.name }} · {{ r.lot.current_room|default:'No room' }}</span><span class="flag ok">✓ Done</span></a></li>{% endfor %}</ul>
+{% if done_today %}<details class="route-section"><summary>{% blocktrans with n=done_today|length %}Sampled today ({{ n }}){% endblocktrans %}</summary>
+  <ul class="lotlist">{% for r in done_today %}<li class="done"><a href="{% url 'sampling:capture' r.lot.pk %}"><span class="no">{{ r.lot.lot_no }}</span><span class="meta">{{ r.lot.grower.name }} · {{ r.lot.current_room|default:_('No room') }}</span><span class="flag ok">✓ {% trans "Done" %}</span></a></li>{% endfor %}</ul>
 </details>{% endif %}
 
-{% if recent_rows %}<details class="route-section"><summary>Checked recently ({{ recent_rows|length }})</summary>
-  <ul class="lotlist">{% for r in recent_rows %}<li><a href="{% url 'sampling:capture' r.lot.pk %}"><span class="no">{{ r.lot.lot_no }}</span><span class="meta">{{ r.lot.grower.name }} · {{ r.lot.current_room|default:'No room' }}<br>Last check {{ r.days_since }}d ago</span><span class="flag grey">Up to date</span></a></li>{% endfor %}</ul>
+{% if recent_rows %}<details class="route-section"><summary>{% blocktrans with n=recent_rows|length %}Checked recently ({{ n }}){% endblocktrans %}</summary>
+  <ul class="lotlist">{% for r in recent_rows %}<li><a href="{% url 'sampling:capture' r.lot.pk %}"><span class="no">{{ r.lot.lot_no }}</span><span class="meta">{{ r.lot.grower.name }} · {{ r.lot.current_room|default:_('No room') }}<br>{% blocktrans with d=r.days_since %}Last check {{ d }}d ago{% endblocktrans %}</span><span class="flag grey">{% trans "Up to date" %}</span></a></li>{% endfor %}</ul>
 </details>{% endif %}
 {% endif %}

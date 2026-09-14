@@ -1,20 +1,12 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}{{ plan.plant.code }} plan v{{ plan.version }}{% endblock %}
 {% block head %}
-<style>
-  .decision-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .5rem .8rem; align-items: end; margin-top: .5rem; }
-  .decision-form label { display: block; font-size: .76rem; color: var(--muted); margin-bottom: .2rem; }
-  .decision-form select, .decision-form input, .decision-form textarea { width: 100%; }
-  .decision-form .wide { grid-column: 1 / -1; }
-  .decision-cell { white-space: normal; min-width: 220px; }
-  .history { margin: .3rem 0 0; padding-left: 1rem; font-size: .8rem; color: var(--muted); }
-  tr.decide-row td { background: #fbfcf9; }
-  details.decide > summary { cursor: pointer; font-weight: 650; color: var(--accent); }
-</style>
+<script src="{% static 'plan-decisions.js' %}" defer></script>
 {% endblock %}
 {% block content %}
 <p class="small"><a href="{% url 'forecast:plan_list' %}?plant={{ plan.plant.code }}">← All plan versions</a> · <a href="{% url 'lots:board' %}?plant={{ plan.plant.code }}">Live packing plan</a></p>
-<div class="toolbar spread" style="align-items:flex-start">
+<div class="toolbar spread page-heading" style="align-items:flex-start">
   <div>
     <p class="eyebrow">{{ plan.plant.code }} · {{ plan.plant.name }} · {{ plan.get_source_display }}</p>
     <h1 class="screen-title">Plan v{{ plan.version }} · {{ plan.plan_date|date:'l M j, Y' }}</h1>
@@ -22,24 +14,42 @@
       {% if plan.is_locked %}<span class="flag grey">Schedule locked {{ plan.locked_at|date:'M j H:i' }} by {{ plan.locked_by|default:'—' }}</span>{% else %}<span class="flag amber">Schedule not yet locked</span>{% endif %}</p>
   </div>
   {% if can_decide %}
-  <div class="toolbar" style="margin:0">
+  <div class="heading-actions">
+    {% if coverage.undecided %}<form method="post" action="{% url 'forecast:plan_accept_remaining' plan.pk %}" onsubmit="return confirm('Accept all {{ coverage.undecided }} remaining recommendation{{ coverage.undecided|pluralize }} as published? Each is recorded as its own decision in your name.')">{% csrf_token %}<button class="btn" type="submit">Accept all remaining ({{ coverage.undecided }})</button></form>{% endif %}
     {% if not plan.is_locked %}<form method="post" action="{% url 'forecast:plan_lock' plan.pk %}" onsubmit="return confirm('Lock the week schedule against plan v{{ plan.version }}? Decisions recorded after this are flagged as late.')">{% csrf_token %}<button class="btn ghost" type="submit">Lock schedule</button></form>{% endif %}
-    <form method="post" action="{% url 'forecast:plan_publish' plan.plant.code %}">{% csrf_token %}<button class="btn soft" type="submit">Publish new version</button></form>
+    <form method="post" action="{% url 'forecast:plan_publish' plan.plant.code %}">{% csrf_token %}<input type="hidden" name="market_regime" value="{{ plan.market_regime }}"><button class="btn soft" type="submit">Publish new version</button></form>
   </div>
   {% endif %}
 </div>
 
+<div class="market-row">
+  <span class="eyebrow" style="margin:0">Market this week</span>
+  {% if can_decide and not plan.is_locked %}
+  <form method="post" action="{% url 'forecast:plan_market' plan.pk %}" class="market-form" data-autosubmit>
+    {% csrf_token %}
+    <select name="market_regime" aria-label="Market context for this plan">
+      <option value="" {% if not plan.market_regime %}selected{% endif %}>Not set</option>
+      {% for value, label in market_regimes %}<option value="{{ value }}" {% if plan.market_regime == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <noscript><button class="btn small-btn ghost" type="submit">Save</button></noscript>
+  </form>
+  {% else %}<strong>{{ plan.get_market_regime_display|default:'Not set' }}</strong>{% endif %}
+  <span class="muted small">Recorded with every decision so that a deferral in an oversupplied week can be told apart from one in a tight week.</span>
+</div>
+
 <div class="tiles" aria-label="Decision coverage">
   <div class="tile"><div class="num">{{ coverage.actionable }}</div><div class="label">Recommendations needing a decision · {{ coverage.total }} lots in plan</div></div>
-  <div class="tile {% if coverage.undecided %}amber{% endif %}"><div class="num">{{ coverage.undecided }}</div><div class="label">Still undecided</div></div>
-  <div class="tile"><div class="num">{{ coverage.by_status.accepted }}</div><div class="label">Accepted</div></div>
-  <div class="tile"><div class="num">{{ coverage.by_status.deferred }}</div><div class="label">Deferred</div></div>
-  <div class="tile"><div class="num">{{ coverage.by_status.overridden }}</div><div class="label">Overridden</div></div>
-  {% if coverage.reasons_needed %}<div class="tile {% if coverage.reasons_pct < 100 %}amber{% endif %}"><div class="num">{{ coverage.reasons_complete }} of {{ coverage.reasons_needed }}</div><div class="label">Deferral and override reasons complete</div></div>{% endif %}
+  <div class="tile {% if coverage.undecided %}amber{% endif %}"><div class="num" data-coverage="undecided">{{ coverage.undecided }}</div><div class="label">Still undecided</div></div>
+  <div class="tile"><div class="num" data-coverage="accepted">{{ coverage.by_status.accepted }}</div><div class="label">Accepted</div></div>
+  <div class="tile"><div class="num" data-coverage="deferred">{{ coverage.by_status.deferred }}</div><div class="label">Deferred</div></div>
+  <div class="tile"><div class="num" data-coverage="overridden">{{ coverage.by_status.overridden }}</div><div class="label">Overridden</div></div>
+  <div class="tile {% if coverage.reasons_needed and coverage.reasons_pct < 100 %}amber{% endif %}" {% if not coverage.reasons_needed %}hidden{% endif %} data-coverage-reasons><div class="num"><span data-coverage="reasons_complete">{{ coverage.reasons_complete }}</span> of <span data-coverage="reasons_needed">{{ coverage.reasons_needed }}</span></div><div class="label">Deferral and override reasons complete</div></div>
 </div>
 
 <h2>Recommendations that need a decision</h2>
-<div class="table-wrap"><table>
+<p class="muted small">Accept records the recommendation as published. Defer or override asks for a structured reason. Saving updates the line in place.</p>
+
+<div class="table-wrap desktop-only"><table class="plan-table">
   <thead><tr><th>#</th><th>Action</th><th>Lot / grower</th><th>Inventory</th><th>Signal at publish</th><th>Pack by</th><th>Decision</th><th>Outcome</th></tr></thead>
   <tbody>
   {% for r in rows %}{% if r.rec.requires_decision %}
@@ -47,37 +57,11 @@
       <td>{{ r.rec.rank }}</td>
       <td><span class="flag red">{{ r.rec.get_action_display }}</span></td>
       <td><a href="{% url 'lots:lot_detail' r.rec.lot.pk %}"><strong>{{ r.rec.lot.lot_no }}</strong></a><br><span class="small muted">{{ r.rec.lot.grower.name }}{% if r.rec.lot.block %} · {{ r.rec.lot.block }}{% endif %}</span></td>
-      <td>{% if r.rec.bins_remaining is not None %}<strong>{{ r.rec.bins_remaining|floatformat:1 }} bins</strong>{% else %}<span class="flag amber">quantity unknown</span>{% endif %}<br><span class="muted small">{{ r.rec.room_name|default:'No room' }} · {{ r.rec.days_in_storage }} d stored</span></td>
+      <td>{% if r.rec.bins_remaining is not None %}<strong>{{ r.rec.bins_remaining|floatformat:0 }} bins</strong>{% else %}<span class="flag amber">quantity unknown</span>{% endif %}<br><span class="muted small">{{ r.rec.room_name|default:'No room' }} · {{ r.rec.days_in_storage }} d stored</span></td>
       <td>{% if r.rec.stage %}<span class="chip {{ r.rec.stage }}">{{ r.rec.get_stage_display }}</span> {{ r.rec.cci_now|floatformat:1 }}{% if r.rec.decay_flag %} <span class="flag red">decay</span>{% endif %}<br><span class="muted small">{{ r.rec.support_label }}</span>{% else %}<span class="muted">no forecast</span>{% endif %}</td>
       <td>{% if r.rec.pack_by_date %}<strong>{{ r.rec.pack_by_date|date:'M j' }}</strong>{% else %}—{% endif %}</td>
-      <td class="decision-cell">
-        {% if r.decision %}
-          <span class="flag {% if r.decision.status == 'accepted' %}ok{% elif r.decision.status == 'deferred' %}amber{% else %}red{% endif %}">{{ r.decision.get_status_display }}</span>
-          {% if r.decision.after_lock %}<span class="flag grey" title="Recorded after the schedule was locked">after lock</span>{% endif %}
-          {% if r.decision.reason %}<br><span class="small">{{ r.decision.get_reason_display }}</span>{% endif %}
-          {% if r.decision.planned_pack_date %}<br><span class="small">Planned pack {{ r.decision.planned_pack_date|date:'M j' }}</span>{% endif %}
-          {% if r.decision.notes %}<br><span class="small muted">{{ r.decision.notes }}</span>{% endif %}
-          <br><span class="small muted">{{ r.decision.decided_by|default:'—' }} · {{ r.decision.decided_at|date:'M j H:i' }}</span>
-          {% if r.history|length > 1 %}<ul class="history">{% for d in r.history %}{% if not forloop.first %}<li>{{ d.get_status_display }}{% if d.reason %} · {{ d.get_reason_display }}{% endif %} · {{ d.decided_by|default:'—' }} {{ d.decided_at|date:'M j H:i' }}</li>{% endif %}{% endfor %}</ul>{% endif %}
-        {% else %}<span class="flag amber">No decision recorded</span>{% endif %}
-        {% if r.form %}
-        <details class="decide" {% if open_rec == r.rec.pk|stringformat:'s' or r.form.errors %}open{% endif %}>
-          <summary>{% if r.decision %}Change decision{% else %}Record decision{% endif %}</summary>
-          <form method="post" action="{% url 'forecast:plan_decide' plan.pk r.rec.pk %}" class="decision-form">
-            {% csrf_token %}
-            {% if r.form.non_field_errors %}<div class="wide errorlist">{{ r.form.non_field_errors }}</div>{% endif %}
-            <div><label for="{{ r.form.status.id_for_label }}">Decision</label>{{ r.form.status }}{{ r.form.status.errors }}</div>
-            <div><label for="{{ r.form.reason.id_for_label }}">Reason (deferral or override)</label>{{ r.form.reason }}{{ r.form.reason.errors }}</div>
-            <div><label for="{{ r.form.planned_pack_date.id_for_label }}">Planned pack date</label>{{ r.form.planned_pack_date }}{{ r.form.planned_pack_date.errors }}</div>
-            <div class="wide"><label for="{{ r.form.notes.id_for_label }}">Notes</label>{{ r.form.notes }}{{ r.form.notes.errors }}</div>
-            <div><button class="btn small-btn" type="submit">Save decision</button></div>
-          </form>
-        </details>
-        {% endif %}
-      </td>
-      <td>{% if r.outcome.status == 'packed' %}<span class="flag ok">Packed {{ r.outcome.date|date:'M j' }}</span>{% if r.outcome.days_after_pack_by is not None %}<br><span class="small {% if r.outcome.days_after_pack_by > 0 %}muted{% endif %}">{% if r.outcome.days_after_pack_by > 0 %}{{ r.outcome.days_after_pack_by }} d after pack-by{% elif r.outcome.days_after_pack_by == 0 %}on pack-by day{% else %}{{ r.outcome.days_abs }} d before pack-by{% endif %}</span>{% endif %}
-        {% elif r.outcome.status == 'dumped' %}<span class="flag red">Dumped</span>
-        {% else %}<span class="muted">In storage</span>{% if r.outcome.days_after_pack_by %}<br><span class="flag red">{{ r.outcome.days_after_pack_by }} d past pack-by</span>{% endif %}{% endif %}</td>
+      <td class="decision-cell">{% include 'forecast/_decision_cell.html' %}</td>
+      <td>{% include 'forecast/_outcome.html' %}</td>
     </tr>
   {% endif %}{% empty %}
     <tr><td colspan="8" class="muted">This plan has no lots.</td></tr>
@@ -85,6 +69,26 @@
   {% if not coverage.actionable and rows %}<tr><td colspan="8" class="muted">Nothing in this plan asked for a pack or flagged decay, so no decision is required.</td></tr>{% endif %}
   </tbody>
 </table></div>
+
+<div class="lot-cards mobile-only">
+  {% for r in rows %}{% if r.rec.requires_decision %}
+  <article class="card lot-card" id="rec-card-{{ r.rec.pk }}">
+    <div class="lot-card-head">
+      <div><span class="flag red">{{ r.rec.get_action_display }}</span><h3 style="margin-top:.45rem">#{{ r.rec.rank }} · Lot {{ r.rec.lot.lot_no }}</h3><span class="muted small">{{ r.rec.lot.grower.name }}{% if r.rec.lot.block %} · {{ r.rec.lot.block }}{% endif %}</span></div>
+      {% if r.rec.stage %}<span class="chip {{ r.rec.stage }}">{{ r.rec.get_stage_display }}</span>{% endif %}
+    </div>
+    <div class="meta-grid">
+      <div><span class="metric-label">Inventory</span><span class="metric-value">{% if r.rec.bins_remaining is not None %}{{ r.rec.bins_remaining|floatformat:0 }} bins{% else %}Unknown{% endif %}</span><span class="muted small">{{ r.rec.room_name|default:'No room' }} · {{ r.rec.days_in_storage }} d</span></div>
+      <div><span class="metric-label">Pack by</span><span class="metric-value">{% if r.rec.pack_by_date %}{{ r.rec.pack_by_date|date:'M j' }}{% else %}—{% endif %}</span></div>
+      <div><span class="metric-label">Signal</span><span class="metric-value">CCI {{ r.rec.cci_now|floatformat:1 }}{% if r.rec.decay_flag %} · decay{% endif %}</span><span class="muted small">{{ r.rec.support_label }}</span></div>
+      <div><span class="metric-label">Outcome</span><span class="metric-value">{% include 'forecast/_outcome.html' %}</span></div>
+    </div>
+    <div class="card-decision">{% include 'forecast/_decision_cell.html' %}</div>
+    <p class="small" style="margin:.6rem 0 0"><a href="{% url 'lots:lot_detail' r.rec.lot.pk %}">Open lot details</a></p>
+  </article>
+  {% endif %}{% empty %}<div class="card muted">This plan has no lots.</div>{% endfor %}
+  {% if not coverage.actionable and rows %}<div class="card muted">Nothing in this plan asked for a pack or flagged decay, so no decision is required.</div>{% endif %}
+</div>
 
 <details class="planning-details">
   <summary>Other lots in this plan · {{ other_count }} monitoring, sampling and pack-soon actions</summary>
@@ -96,8 +100,8 @@
         <td>{{ r.rec.rank }}</td>
         <td><span class="flag {% if r.rec.action == 'monitor' %}ok{% elif r.rec.action == 'pack_soon' or r.rec.action == 'sample_due' or r.rec.action == 'retake_photo' %}amber{% else %}grey{% endif %}">{{ r.rec.get_action_display }}</span></td>
         <td><a href="{% url 'lots:lot_detail' r.rec.lot.pk %}">{{ r.rec.lot.lot_no }}</a> <span class="small muted">{{ r.rec.lot.grower.name }}</span></td>
-        <td>{% if r.rec.bins_remaining is not None %}{{ r.rec.bins_remaining|floatformat:1 }} bins{% else %}<span class="muted">unknown</span>{% endif %} <span class="muted small">· {{ r.rec.room_name|default:'No room' }}</span></td>
-        <td>{% if r.rec.stage %}<span class="chip {{ r.rec.stage }}">{{ r.rec.stage }}</span> {{ r.rec.cci_now|floatformat:1 }} <span class="muted small">{{ r.rec.support_label }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if r.rec.bins_remaining is not None %}{{ r.rec.bins_remaining|floatformat:0 }} bins{% else %}<span class="muted">unknown</span>{% endif %} <span class="muted small">· {{ r.rec.room_name|default:'No room' }}</span></td>
+        <td>{% if r.rec.stage %}<span class="chip {{ r.rec.stage }}">{{ r.rec.get_stage_display }}</span> {{ r.rec.cci_now|floatformat:1 }} <span class="muted small">{{ r.rec.support_label }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>{{ r.rec.pack_by_date|date:'M j'|default:'—' }}{% for note in r.rec.evidence_notes %}<p class="muted small">{{ note }}</p>{% endfor %}</td>
         <td>{% if r.outcome.status == 'packed' %}Packed {{ r.outcome.date|date:'M j' }}{% elif r.outcome.status == 'dumped' %}Dumped{% else %}<span class="muted">In storage</span>{% endif %}</td>
       </tr>

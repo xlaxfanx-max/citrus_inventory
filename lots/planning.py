@@ -13,7 +13,9 @@ from decimal import Decimal
 
 from django.db.models import Prefetch
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
+from forecast.features import warm_exposure
 from forecast.models import PlanAction, Prediction
 from sampling.models import Sample, SamplePhoto
 
@@ -53,6 +55,7 @@ def plan_lots(plant, today=None):
     today = today or timezone.localdate()
     return (
         Lot.objects.in_storage().at_plant(plant)
+        .with_bin_balance()
         .select_related('grower', 'current_room', 'plant')
         .prefetch_related(
             Prefetch('predictions', queryset=Prediction.objects.latest_per_lot(on_or_before=today)),
@@ -61,6 +64,7 @@ def plan_lots(plant, today=None):
                 queryset=Sample.objects.filter(is_void=False, purpose=Sample.Purpose.ROUTINE, sampled_at__date__lte=today).order_by('-sampled_at', '-id').prefetch_related('photos'),
             ),
             'packouts',
+            'room_moves__room',
         )
     )
 
@@ -69,6 +73,7 @@ def board_rows(lots, today, settings):
     rows = []
     for lot in lots:
         pred = next(iter(lot.predictions.all()), None)
+        warm = warm_exposure(lot, today, settings)
         sample = next((s for s in lot.samples.all() if s.purpose == Sample.Purpose.ROUTINE and not s.is_void and s.sampled_on <= today), None)
         photo = sample.best_photo if sample else None
         statuses = {p.status for p in sample.photos.all()} if sample else set()
@@ -77,12 +82,15 @@ def board_rows(lots, today, settings):
         photo_pending = SamplePhoto.Status.PENDING in statuses and SamplePhoto.Status.SCORED not in statuses
         photo_processing = SamplePhoto.Status.PROCESSING in statuses and SamplePhoto.Status.SCORED not in statuses
         photo_quality_low = bool(photo and not photo.quality_ok)
-        evidence_notes = pred.review_blockers(today, settings) if pred else ['No forecast yet.']
+        evidence_notes = pred.review_blockers(today, settings) if pred else [_('No forecast yet.')]
         if photo_failed or photo_quality_low:
-            evidence_notes.append('Retake the latest routine photo before acting on color.')
+            evidence_notes.append(_('Retake the latest routine photo before acting on color.'))
+        # The date degrades rather than vanishing: a stale forecast still
+        # shows its last pack-by date (greyed, with why) and still counts
+        # toward bins due. Urgency and pack actions need usable evidence.
         dates_usable = bool(pred) and not evidence_notes
-        days_to = pred.days_to_pack_by(today) if dates_usable else None
-        if days_to is None:
+        days_to = pred.days_to_pack_by(today) if pred else None
+        if days_to is None or not dates_usable:
             urgency = ''
         elif days_to <= 7:
             urgency = 'red'
@@ -122,12 +130,16 @@ def board_rows(lots, today, settings):
             'photo_processing': photo_processing,
             'photo_quality_low': photo_quality_low,
             'dates_usable': dates_usable,
+            'date_stale': bool(pred and pred.pack_by_date and not dates_usable),
             'evidence_notes': evidence_notes,
             'days_to_pack_by': days_to,
             'overdue_days': -days_to if days_to is not None and days_to < 0 else None,
             'urgency': urgency,
             'days_since_sample': days_since_sample,
             'sample_overdue': sample_overdue,
+            'warm': warm,
+            'warm_weeks': warm['weeks'],
+            'warm_flag': warm['flag'],
             'action': action,
             'priority': action.label,
             'priority_code': action.code,
@@ -153,7 +165,7 @@ def capacity_projection(rows, plant, today, weeks=8):
         end = start + timedelta(days=6)
         bucket_rows = []
         for row in rows:
-            pack_by = row['pred'].pack_by_date if row['pred'] and row['dates_usable'] else None
+            pack_by = row['pred'].pack_by_date if row['pred'] else None
             if not pack_by:
                 continue
             if offset == 0:

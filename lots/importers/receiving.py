@@ -172,6 +172,7 @@ def run(rows, batch=None):
                 rejected += 1
                 continue
             changed = False
+            changes = {}
             for field, value in (
                 ('grower', grower), ('block', d['block']), ('variety', d['variety']),
                 ('receive_date', d['receive_date']), ('bins_received', d['bins_received']),
@@ -179,23 +180,33 @@ def run(rows, batch=None):
                 ('intake_cci_std', d['intake_cci_std']),
             ):
                 if getattr(lot, field) != value:
+                    changes[field if field != 'grower' else 'grower_id'] = (
+                        getattr(lot, 'grower_id') if field == 'grower' else getattr(lot, field),
+                        value.pk if field == 'grower' else value,
+                    )
                     setattr(lot, field, value)
                     changed = True
             if d['receiving_color'] and lot.receiving_color != d['receiving_color']:
+                changes['receiving_color'] = (lot.receiving_color, d['receiving_color'])
                 lot.receiving_color = d['receiving_color']
                 changed = True
             if room is not None and lot.current_room_id is None and lot.status == Lot.Status.IN_STORAGE:
+                changes['current_room_id'] = (None, room.pk)
                 lot.current_room = room
                 moves.append((lot, room, d['receive_date']))
                 changed = True
             if changed:
-                to_update.append(lot)
+                to_update.append((lot, changes))
 
     if to_create:
         Lot.objects.bulk_create(to_create)
+        for lot in to_create:
+            lot.log_changes({'created': (None, lot.lot_no)}, source='import:receiving')
     if to_update:
+        for lot, changes in to_update:
+            lot.log_changes(changes, source='import:receiving')
         Lot.objects.bulk_update(
-            to_update, [
+            [lot for lot, _ in to_update], [
                 'grower', 'block', 'variety', 'receive_date', 'receiving_color',
                 'bins_received', 'current_room', 'harvest_date', 'intake_cci_mean',
                 'intake_cci_std',
@@ -204,10 +215,10 @@ def run(rows, batch=None):
     if moves:
         # bulk_create above assigned pks on the new lots (SQLite/Postgres both return ids).
         # Every receiving-file move is dated receive_date, so a lot that returns to a
-        # room it was in before would collide on (lot, room, moved_at); the existing
+        # room it was in before would collide on (lot, room, moved_on); the existing
         # move already records that room, so the duplicate is simply skipped.
         LotRoomMove.objects.bulk_create(
-            [LotRoomMove(lot=lot, room=room, moved_at=when) for lot, room, when in moves],
+            [LotRoomMove(lot=lot, room=room, moved_on=when) for lot, room, when in moves],
             ignore_conflicts=True,
         )
     return len(usable) - rejected, errors

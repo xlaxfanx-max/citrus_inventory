@@ -11,9 +11,14 @@ from lots.models import Lot, LotTreatment, Plant, RoomCondition, plant_for
 from lots.roles import ADMIN, FOREMAN, GM, group_required, is_gm, resolve_plant
 from sampling.models import Sample
 
+import json
+
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+
 from .forms import PlanDecisionForm
-from .models import PackPlan, PlanRecommendation, Prediction
-from .plans import coverage as plan_coverage, plans_for, publish_plan, scorecard
+from .models import MarketRegime, PackPlan, PlanRecommendation, Prediction
+from .plans import accept_remaining, coverage as plan_coverage, plans_for, publish_plan, scorecard
 from .report import build_report
 from .readiness import readiness_for
 
@@ -214,6 +219,8 @@ def plan_list(request):
         'plants': plants,
         'rows': rows,
         'scorecard': scorecard(plans),
+        'latest': plans[0] if plans else None,
+        'market_regimes': MarketRegime.choices,
     })
 
 
@@ -242,7 +249,29 @@ def _plan_context(request, plan, forms=None):
         'can_decide': can_decide,
         'today': today,
         'open_rec': request.GET.get('open') or '',
+        'market_regimes': MarketRegime.choices,
     }
+
+
+def _decision_cell_response(request, plan, rec, form=None, status=200):
+    """The one recommendation's decision box, for in-place updates from the
+    plan screen. The coverage tiles are refreshed from the X-Plan-Coverage
+    header so the page never needs a full reload."""
+    plan = _plan_or_404(request, plan.pk)  # reload prefetched decisions after the write
+    rec = next(r for r in plan.recommendations.all() if r.pk == rec.pk)
+    context = _plan_context(request, plan, forms={rec.pk: form} if form else None)
+    row = next(r for r in context['rows'] if r['rec'].pk == rec.pk)
+    if form is not None:
+        context['open_rec'] = str(rec.pk)
+    html = render_to_string('forecast/_decision_cell.html', {**context, 'r': row}, request=request)
+    response = HttpResponse(html, status=status)
+    cov = context['coverage']
+    response['X-Plan-Coverage'] = json.dumps({
+        'undecided': cov['undecided'], 'accepted': cov['by_status']['accepted'],
+        'deferred': cov['by_status']['deferred'], 'overridden': cov['by_status']['overridden'],
+        'reasons_complete': cov['reasons_complete'], 'reasons_needed': cov['reasons_needed'],
+    })
+    return response
 
 
 @group_required(FOREMAN, GM, ADMIN)
@@ -258,7 +287,7 @@ def plan_publish(request, code):
     pinned = plant_for(request.user)
     if pinned is not None and pinned.pk != plant.pk:
         raise Http404
-    plan = publish_plan(plant, user=request.user, source=PackPlan.Source.BOARD)
+    plan = publish_plan(plant, user=request.user, source=PackPlan.Source.BOARD, market_regime=request.POST.get('market_regime', ''))
     n = sum(1 for r in plan.recommendations.all() if r.requires_decision)
     messages.success(request, f'Plan v{plan.version} published for {plant.code}: {n} recommendation{"s" if n != 1 else ""} need a decision.')
     return redirect(plan)
@@ -288,10 +317,43 @@ def plan_decide(request, pk, rec_pk):
     plan = _plan_or_404(request, pk)
     rec = get_object_or_404(PlanRecommendation, pk=rec_pk, plan=plan)
     form = PlanDecisionForm(request.POST, recommendation=rec, user=request.user, prefix=f'rec{rec.pk}')
+    in_place = bool(request.headers.get('HX-Request'))
     if form.is_valid():
         decision = form.save()
+        if in_place:
+            return _decision_cell_response(request, plan, rec)
         messages.success(request, f'Lot {rec.lot.lot_no}: {decision.get_status_display().lower()}.')
         return redirect(f'{plan.get_absolute_url()}#rec-{rec.pk}')
+    if in_place:
+        return _decision_cell_response(request, plan, rec, form=form, status=400)
     context = _plan_context(request, plan, forms={rec.pk: form})
     context['open_rec'] = str(rec.pk)
     return render(request, 'forecast/plan_detail.html', context, status=400)
+
+
+@group_required(GM, ADMIN)
+@require_POST
+def plan_accept_remaining(request, pk):
+    plan = _plan_or_404(request, pk)
+    n = accept_remaining(plan, request.user)
+    if n:
+        messages.success(request, f'Accepted {n} remaining recommendation{"s" if n != 1 else ""} on plan v{plan.version}. Each is recorded as its own decision.')
+    else:
+        messages.info(request, 'Every recommendation already had a decision.')
+    return redirect(plan)
+
+
+@group_required(GM, ADMIN)
+@require_POST
+def plan_market(request, pk):
+    plan = _plan_or_404(request, pk)
+    regime = request.POST.get('market_regime', '')
+    if regime and regime not in {m.value for m in MarketRegime}:
+        messages.error(request, 'Choose tight, normal or oversupplied.')
+    elif plan.is_locked:
+        messages.warning(request, 'The schedule is locked; the market context stays as published.')
+    else:
+        plan.market_regime = regime
+        plan.save(update_fields=['market_regime'])
+        messages.success(request, f'Market context for plan v{plan.version}: {plan.get_market_regime_display() or "not set"}.')
+    return redirect(plan)

@@ -24,7 +24,11 @@ logger = logging.getLogger(__name__)
 PIPELINE_VERSION = 'v1.1-aruco-cci-2026.09'
 
 MAX_DETECT_SIDE = 2400        # downscale huge phone photos before detection
-MIN_MARKERS = 3               # homography from 3 markers is plenty; 4 is better
+# All four corner markers are required. Three give a homography, but a
+# missing corner almost always means part of the board (and a patch strip)
+# is out of frame or in glare, and the 2026 field studies of card-based
+# phone colorimetry reject such frames rather than correct through them.
+MIN_MARKERS = 4
 SAT_MIN, VAL_MIN = 60, 70     # HSV thresholds separating fruit from matte black
 # One lemon on the 1200x900 canvas is ~0.6-1.7% of the area (2-3 in across).
 # Anything above 2.5% is two touching fruit: dropped, so the count comes up
@@ -78,7 +82,11 @@ def detect_board(img):
         src.extend(quad.reshape(4, 2))
         dst.extend(board.marker_corners_canvas(mid))
     if len(seen) < MIN_MARKERS:
-        raise ScoringError(f'reference board not found (only markers {sorted(seen)} detected, need {MIN_MARKERS})')
+        missing = sorted(set(board.MARKER_POSITIONS_IN) - set(seen))
+        raise ScoringError(
+            f'all four corner markers must be visible (missing {missing}); '
+            'move the phone so the whole board is in frame without glare and retake'
+        )
     H, _ = cv2.findHomography(np.array(src, dtype=np.float32), np.array(dst, dtype=np.float32), cv2.RANSAC, 5.0)
     if H is None:
         raise ScoringError('reference board found but could not be rectified')
@@ -108,13 +116,62 @@ def _patch_mean_linear_rgb(canvas_lin_rgb, rect):
     return region.reshape(-1, 3).mean(axis=0)
 
 
-def color_correct(canvas_bgr, reference_rgb=None):
-    """Fit a 3x3 linear map from measured to reference color on the nine
-    patches and apply it to the whole canvas. The fit is done in linear light
-    (sRGB de-gammaed), where a camera's white-balance error really is a
-    linear operation. Returns (corrected_bgr, info). If the fit is
-    degenerate the image is returned uncorrected and info says so."""
+def _grey_curve(lin, reference_rgb=None):
+    """Per-channel monotone curves through the six grey patches: measured
+    linear value -> reference linear value. This is the one-dimensional form
+    of the histogram (CDF) matching used in card-based phone colorimetry: it
+    removes tone-curve and exposure error before the colour matrix is fit.
+    Returns (curves, info) where curves is a list of (xs, ys) per channel."""
+    greys = [p for p in board.patches() if p['name'].startswith('grey_')]
+    measured = np.array([_patch_mean_linear_rgb(lin, p['rect']) for p in greys])
+    reference = np.array([
+        _srgb_to_linear(np.array(reference_rgb[p['name']] if reference_rgb else p['ref_rgb'], dtype=np.float64) / 255.0)
+        for p in greys
+    ])
+    curves = []
+    monotone = True
+    for channel in range(3):
+        order = np.argsort(measured[:, channel])
+        xs = measured[order, channel]
+        ys = reference[order, channel]
+        # The ramp must brighten in the same order on the photo as on the
+        # board; if it does not, the patches are in shadow or glare.
+        if not np.all(np.diff(ys) > 0):
+            monotone = False
+        xs = np.concatenate(([0.0], xs, [1.0]))
+        ys = np.concatenate(([0.0], ys, [1.0]))
+        curves.append((xs, ys))
+    return curves, {'grey_curve_monotone': monotone}
+
+
+def _apply_curves(lin, curves):
+    out = np.empty_like(lin)
+    for channel, (xs, ys) in enumerate(curves):
+        out[:, :, channel] = np.interp(lin[:, :, channel], xs, ys)
+    return out
+
+
+def color_correct(canvas_bgr, reference_rgb=None, method='linear'):
+    """Map measured to reference colour using the nine patches and apply it to
+    the whole canvas. Work is done in linear light (sRGB de-gammaed), where a
+    camera's white-balance error really is a linear operation.
+
+    method='linear': one 3x3 matrix fit on all nine patches (v1 behaviour).
+    method='curve': first a per-channel curve through the six grey patches
+    (tone/exposure), then the same 3x3 matrix on the curve-corrected patches.
+
+    Returns (corrected_bgr, info). If the fit is degenerate the image is
+    returned uncorrected and info says so."""
     lin = _srgb_to_linear(canvas_bgr[:, :, ::-1].astype(np.float64) / 255.0)
+    info = {'method': method}
+    if method == 'curve':
+        curves, curve_info = _grey_curve(lin, reference_rgb)
+        info.update(curve_info)
+        if curve_info['grey_curve_monotone']:
+            lin = _apply_curves(lin, curves)
+        else:
+            info['method'] = 'linear'
+            info['curve_skipped'] = 'grey ramp not monotone on the photo; matrix only'
     measured, reference = [], []
     for p in board.patches():
         measured.append(_patch_mean_linear_rgb(lin, p['rect']))
@@ -125,13 +182,13 @@ def color_correct(canvas_bgr, reference_rgb=None):
     A, _, rank, sv = np.linalg.lstsq(M, R, rcond=None)
     cond = float(sv[0] / sv[-1]) if sv[-1] > 0 else math.inf
     residual = float(np.sqrt(np.mean((M @ A - R) ** 2)))
-    info = {
+    info.update({
         'patch_measured_srgb': [[round(float(v), 4) for v in row] for row in _linear_to_srgb(M)],
         'matrix_linear': [[round(float(v), 5) for v in row] for row in A.T],
         'condition': round(cond, 2) if math.isfinite(cond) else None,
         'residual_rms_linear': round(residual, 4),
         'applied': bool(rank == 3 and cond < 1e3 and residual < 0.15),
-    }
+    })
     if not info['applied']:
         return canvas_bgr, info
     corrected = _linear_to_srgb((lin.reshape(-1, 3) @ A).reshape(lin.shape))
@@ -202,13 +259,13 @@ def make_thumbnail(data, size=THUMB_SIZE):
     return out.getvalue()
 
 
-def score_image(data, min_fruit=6, reference_rgb=None):
+def score_image(data, min_fruit=6, reference_rgb=None, method='linear'):
     """Run the full pipeline on encoded image bytes. Returns the result dict
     or raises ScoringError with whatever was measured before failing."""
     img = decode_image(data)
     H, markers = detect_board(img)
     canvas = warp_to_canvas(img, H)
-    corrected, correction = color_correct(canvas, reference_rgb=reference_rgb)
+    corrected, correction = color_correct(canvas, reference_rgb=reference_rgb, method=method)
     blobs = segment_fruit(corrected)
     if len(blobs) < min_fruit:
         raise ScoringError(
@@ -263,7 +320,8 @@ def score_photo(photo, settings=None, rebuild=True):
 
     try:
         result = score_image(data, min_fruit=settings.min_fruit_for_score,
-            reference_rgb=photo.calibration_snapshot.get('reference_rgb'))
+            reference_rgb=photo.calibration_snapshot.get('reference_rgb'),
+            method=getattr(settings, 'color_correction_method', 'linear'))
     except ScoringError as e:
         photo.mark_failed(
             str(e),

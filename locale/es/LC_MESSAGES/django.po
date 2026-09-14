@@ -1,0 +1,715 @@
+# Spanish (plant floor) translation for Lemon Tracker.
+# Hand-maintained; compile with: python scripts/compile_messages.py
+msgid ""
+msgstr ""
+"Project-Id-Version: Lemon Tracker\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# --- Shell -------------------------------------------------------------
+msgid "Plant board"
+msgstr "Tablero de planta"
+
+msgid "Skip to content"
+msgstr "Ir al contenido"
+
+msgid "Lemon storage"
+msgstr "Almacén de limón"
+
+msgid "Menu"
+msgstr "Menú"
+
+msgid "Main navigation"
+msgstr "Navegación principal"
+
+msgid "Packing plan"
+msgstr "Plan de empaque"
+
+msgid "Decisions"
+msgstr "Decisiones"
+
+msgid "Sample route"
+msgstr "Ruta de muestreo"
+
+msgid "Imports"
+msgstr "Importaciones"
+
+msgid "Validation"
+msgstr "Validación"
+
+msgid "Readiness"
+msgstr "Preparación"
+
+msgid "Settings"
+msgstr "Configuración"
+
+msgid "Administration"
+msgstr "Administración"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Administrator"
+msgstr "Administrador"
+
+msgid "General manager"
+msgstr "Gerente general"
+
+msgid "Foreman"
+msgstr "Mayordomo"
+
+msgid "Log out"
+msgstr "Cerrar sesión"
+
+msgid "Demonstration mode"
+msgstr "Modo de demostración"
+
+msgid "Example data."
+msgstr "Datos de ejemplo."
+
+msgid "Color estimates require manager review. Shelf life is unvalidated."
+msgstr "Las estimaciones de color requieren revisión del gerente. La vida de anaquel no está validada."
+
+msgid "Details"
+msgstr "Detalles"
+
+msgid "Example records do not establish field accuracy."
+msgstr "Los registros de ejemplo no demuestran exactitud en campo."
+
+msgid "Color-based planning estimates require manager review. Remaining marketable life has not been validated."
+msgstr "Las estimaciones de planeación basadas en color requieren revisión del gerente. La vida comercial restante no ha sido validada."
+
+# --- Login -------------------------------------------------------------
+msgid "Log in"
+msgstr "Iniciar sesión"
+
+msgid "Use your assigned Saticoy account."
+msgstr "Use la cuenta de Saticoy que le asignaron."
+
+msgid "Wrong username or password. Check your details and try again."
+msgstr "Usuario o contraseña incorrectos. Revise sus datos e intente de nuevo."
+
+msgid "Username"
+msgstr "Usuario"
+
+msgid "Password"
+msgstr "Contraseña"
+
+msgid "You stay logged in on this device for 30 days. On a shared device, log out when you finish."
+msgstr "La sesión queda abierta en este teléfono por 30 días. Si el teléfono es compartido, cierre sesión al terminar."
+
+# --- Board -------------------------------------------------------------
+msgid "All plants"
+msgstr "Todas las plantas"
+
+msgid "View inventory priorities"
+msgstr "Ver prioridades del inventario"
+
+msgid "Monday report"
+msgstr "Reporte del lunes"
+
+msgid "Start sample route"
+msgstr "Iniciar ruta de muestreo"
+
+msgid "Lots in view"
+msgstr "Lotes en vista"
+
+msgid "Known bins due · 7 days"
+msgstr "Bins conocidos por empacar · 7 días"
+
+msgid "%(n)s lot"
+msgid_plural "%(n)s lots"
+msgstr[0] "%(n)s lote"
+msgstr[1] "%(n)s lotes"
+
+msgid "Observed decay flags"
+msgstr "Alertas de pudrición observada"
+
+msgid "Sample checks due"
+msgstr "Muestreos pendientes"
+
+msgid "Photos to retake"
+msgstr "Fotos por repetir"
+
+msgid "Plant"
+msgstr "Planta"
+
+msgid "Room"
+msgstr "Cuarto"
+
+msgid "All rooms"
+msgstr "Todos los cuartos"
+
+msgid "Search inventory"
+msgstr "Buscar en el inventario"
+
+msgid "Lot, grower, block, or room"
+msgstr "Lote, productor, bloque o cuarto"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "Clear filters"
+msgstr "Quitar filtros"
+
+msgid "Inventory priorities"
+msgstr "Prioridades del inventario"
+
+msgid "Showing %(shown)s of %(total)s lots"
+msgstr "Mostrando %(shown)s de %(total)s lotes"
+
+msgid "Highest urgency first"
+msgstr "Mayor urgencia primero"
+
+msgid "Lot"
+msgstr "Lote"
+
+msgid "Inventory"
+msgstr "Inventario"
+
+msgid "bins"
+msgstr "bins"
+
+msgid "Unknown"
+msgstr "Desconocido"
+
+msgid "No room"
+msgstr "Sin cuarto"
+
+msgid "Indicative pack date"
+msgstr "Fecha indicativa de empaque"
+
+msgid "Not available"
+msgstr "No disponible"
+
+msgid "%(d)sd overdue"
+msgstr "%(d)s días de retraso"
+
+msgid "%(d)sd remaining"
+msgstr "faltan %(d)s días"
+
+msgid "Last check"
+msgstr "Último muestreo"
+
+msgid "%(d)sd ago"
+msgstr "hace %(d)s días"
+
+msgid "Never"
+msgstr "Nunca"
+
+msgid "Risk"
+msgstr "Riesgo"
+
+msgid "observed decay"
+msgstr "de pudrición observada"
+
+msgid "No decay flag"
+msgstr "Sin alerta de pudrición"
+
+msgid "%(w)s wk warm storage"
+msgstr "%(w)s sem. en cuarto caliente"
+
+msgid "Evidence notes (%(n)s)"
+msgstr "Notas de evidencia (%(n)s)"
+
+msgid "Retake photo"
+msgstr "Repetir foto"
+
+msgid "Sample lot"
+msgstr "Muestrear lote"
+
+msgid "Open details"
+msgstr "Ver detalles"
+
+msgid "Pack dates are planning guidance. Open a lot for CCI history, drift, photos, and the full audit trail."
+msgstr "Las fechas de empaque son una guía de planeación. Abra un lote para ver el historial de CCI, la tendencia, las fotos y la bitácora completa."
+
+msgid "No lots match this view"
+msgstr "Ningún lote coincide con esta vista"
+
+msgid "Try a different search or clear your filters to see the full packing plan."
+msgstr "Pruebe otra búsqueda o quite los filtros para ver el plan completo."
+
+msgid "No inventory in storage"
+msgstr "No hay inventario en almacén"
+
+msgid "Import receiving records to start building this plant’s packing plan."
+msgstr "Importe los registros de recepción para empezar a formar el plan de empaque de esta planta."
+
+msgid "New lots appear here once receiving records are imported by your manager."
+msgstr "Los lotes nuevos aparecen aquí cuando su gerente importa los registros de recepción."
+
+msgid "Import receiving records"
+msgstr "Importar registros de recepción"
+
+# --- Action labels and evidence notes (Python) -------------------------
+msgid "Inspect observed decay"
+msgstr "Revisar pudrición observada"
+
+msgid "Pack overdue"
+msgstr "Empaque atrasado"
+
+msgid "Pack this week"
+msgstr "Empacar esta semana"
+
+msgid "Sample due"
+msgstr "Muestreo pendiente"
+
+msgid "Pack soon"
+msgstr "Empacar pronto"
+
+msgid "Scoring"
+msgstr "Calificando foto"
+
+msgid "Needs baseline"
+msgstr "Falta línea base"
+
+msgid "Monitor"
+msgstr "Monitorear"
+
+msgid "Refresh forecast"
+msgstr "Actualizar pronóstico"
+
+msgid "Rebuild forecast with the current model."
+msgstr "Recalcular el pronóstico con el modelo actual."
+
+msgid "Forecast needs a refresh."
+msgstr "El pronóstico necesita actualizarse."
+
+msgid "Collect usable routine photos on at least two separate days."
+msgstr "Tome fotos de rutina utilizables en al menos dos días distintos."
+
+msgid "Usable routine measurements are out of date; resample."
+msgstr "Las mediciones de rutina están vencidas; vuelva a muestrear."
+
+msgid "No forecast yet."
+msgstr "Aún no hay pronóstico."
+
+msgid "Retake the latest routine photo before acting on color."
+msgstr "Repita la última foto de rutina antes de actuar por color."
+
+msgid "Strong trend fit"
+msgstr "Tendencia bien ajustada"
+
+msgid "Limited trend fit"
+msgstr "Tendencia con ajuste limitado"
+
+msgid "Low trend support"
+msgstr "Tendencia con poco respaldo"
+
+msgid "No trend"
+msgstr "Sin tendencia"
+
+msgid "Dark green"
+msgstr "Verde oscuro"
+
+msgid "Light green"
+msgstr "Verde claro"
+
+msgid "Silver"
+msgstr "Plata"
+
+msgid "Yellow"
+msgstr "Amarillo"
+
+msgid "Within %(n)d wk"
+msgstr "En %(n)d sem."
+
+# --- Sample route ------------------------------------------------------
+msgid "Today’s sample route"
+msgstr "Ruta de muestreo de hoy"
+
+msgid "Overdue and unsampled lots appear first."
+msgstr "Los lotes atrasados y sin muestrear aparecen primero."
+
+msgid "Route progress"
+msgstr "Avance de la ruta"
+
+msgid "%(n)s check left"
+msgid_plural "%(n)s checks left"
+msgstr[0] "Falta %(n)s muestreo"
+msgstr[1] "Faltan %(n)s muestreos"
+
+msgid "Route complete"
+msgstr "Ruta completa"
+
+msgid "%(done)s of %(total)s done"
+msgstr "%(done)s de %(total)s hechos"
+
+msgid "Sample route completion"
+msgstr "Avance de la ruta de muestreo"
+
+msgid "Next lot"
+msgstr "Siguiente lote"
+
+msgid "%(d)sd since last check"
+msgstr "%(d)s días desde el último muestreo"
+
+msgid "never sampled"
+msgstr "nunca muestreado"
+
+msgid "Sample this lot"
+msgstr "Muestrear este lote"
+
+msgid "All currently due lots have been checked. Recently sampled inventory remains available below."
+msgstr "Todos los lotes pendientes ya fueron revisados. El inventario muestreado recientemente sigue disponible abajo."
+
+msgid "Find a lot"
+msgstr "Buscar un lote"
+
+msgid "Find a different lot"
+msgstr "Buscar otro lote"
+
+msgid "Search"
+msgstr "Buscar"
+
+msgid "Matches for “%(q)s” (%(n)s)"
+msgstr "Resultados para “%(q)s” (%(n)s)"
+
+msgid "last check %(d)sd ago"
+msgstr "último muestreo hace %(d)s días"
+
+msgid "Last check %(d)sd ago"
+msgstr "Último muestreo hace %(d)s días"
+
+msgid "never checked"
+msgstr "nunca revisado"
+
+msgid "Done"
+msgstr "Hecho"
+
+msgid "Due"
+msgstr "Pendiente"
+
+msgid "Up to date"
+msgstr "Al día"
+
+msgid "No lots in storage match."
+msgstr "Ningún lote en almacén coincide."
+
+msgid "Needs a check (%(n)s)"
+msgstr "Por revisar (%(n)s)"
+
+msgid "%(d)sd since check"
+msgstr "%(d)s días desde el muestreo"
+
+msgid "never · %(w)s wk stored"
+msgstr "nunca · %(w)s sem. almacenado"
+
+msgid "Nothing else is due today."
+msgstr "No hay nada más pendiente hoy."
+
+msgid "Sampled today (%(n)s)"
+msgstr "Muestreados hoy (%(n)s)"
+
+msgid "Checked recently (%(n)s)"
+msgstr "Revisados recientemente (%(n)s)"
+
+# --- Capture -----------------------------------------------------------
+msgid "Sample %(lot)s"
+msgstr "Muestra %(lot)s"
+
+msgid "← Back to today’s route"
+msgstr "← Volver a la ruta de hoy"
+
+msgid "Routine check or shelf-life holdout"
+msgstr "Revisión de rutina o grupo de reserva"
+
+msgid "Sample lot %(lot)s"
+msgstr "Muestrear lote %(lot)s"
+
+msgid "%(weeks)s weeks stored"
+msgstr "%(weeks)s semanas almacenado"
+
+msgid "Previous check"
+msgstr "Muestreo anterior"
+
+msgid "decay"
+msgstr "pudrición"
+
+msgid "This lot has been packed. Record only the retained shelf-life holdout group here."
+msgstr "Este lote ya fue empacado. Registre aquí solo el grupo de reserva retenido."
+
+msgid "Station"
+msgstr "Estación"
+
+msgid "How to sample"
+msgstr "Cómo muestrear"
+
+msgid "Pull %(n)s fruit across at least 5 bins without choosing by appearance, including positions below the top layer. Inspect all of them for decay and defects; photograph 10 of them on the board. Without a measured station, color readings are exploratory."
+msgstr "Saque %(n)s frutas de al menos 5 bins sin escogerlas por su apariencia, incluyendo posiciones debajo de la capa de arriba. Revise todas por pudrición y defectos; fotografíe 10 de ellas en el tablero. Sin una estación medida, las lecturas de color son exploratorias."
+
+msgid "1 of 4 · Photograph 10 fruit"
+msgstr "1 de 4 · Fotografíe 10 frutas"
+
+msgid "Take the photo"
+msgstr "Tomar la foto"
+
+msgid "Ten lemons on the board, spaced apart, all four corner markers visible."
+msgstr "Diez limones en el tablero, separados, con las cuatro marcas de las esquinas visibles."
+
+msgid "Preview of the fruit photo"
+msgstr "Vista previa de la foto"
+
+msgid "Take the photo before saving."
+msgstr "Tome la foto antes de guardar."
+
+msgid "How were fruit selected?"
+msgstr "¿Cómo se escogieron las frutas?"
+
+msgid "Bins represented"
+msgstr "Bins representados"
+
+msgid "Optional second photo"
+msgstr "Segunda foto (opcional)"
+
+msgid "Second photo"
+msgstr "Segunda foto"
+
+msgid "2 of 4 · Color you see"
+msgstr "2 de 4 · Color que ve"
+
+msgid "Choose the color you see."
+msgstr "Escoja el color que ve."
+
+msgid "3 of 4 · Pack within how many weeks?"
+msgstr "3 de 4 · ¿Empacar en cuántas semanas?"
+
+msgid "Choose when this lot should be packed."
+msgstr "Escoja cuándo se debe empacar este lote."
+
+msgid "4 of 4 · Decayed fruit"
+msgstr "4 de 4 · Frutas podridas"
+
+msgid "out of"
+msgstr "de"
+
+msgid "One fewer"
+msgstr "Una menos"
+
+msgid "One more"
+msgstr "Una más"
+
+msgid "Decay is at or above %(pct)s%%. Inspect another %(n)s fruit from different bins and enter the combined decayed count out of %(total)s."
+msgstr "La pudrición llega al %(pct)s%% o más. Revise otras %(n)s frutas de bins distintos y anote el total de podridas de %(total)s."
+
+msgid "Enter the decayed count."
+msgstr "Anote cuántas frutas están podridas."
+
+msgid "Quality details"
+msgstr "Detalles de calidad"
+
+msgid "Recommended when defects are visible"
+msgstr "Recomendado cuando se ven defectos"
+
+msgid "Soft fruit"
+msgstr "Frutas blandas"
+
+msgid "Shriveled fruit"
+msgstr "Frutas arrugadas"
+
+msgid "Chilling injury"
+msgstr "Daño por frío"
+
+msgid "Rind breakdown"
+msgstr "Daño de cáscara"
+
+msgid "Firmness"
+msgstr "Firmeza"
+
+msgid "Counts are out of the fruit inspected above."
+msgstr "Los conteos son sobre las frutas revisadas arriba."
+
+msgid "Shelf-life holdout"
+msgstr "Grupo de reserva (vida de anaquel)"
+
+msgid "Only for fruit intentionally followed to failure"
+msgstr "Solo para fruta que se sigue a propósito hasta que falla"
+
+msgid "Assessment result"
+msgstr "Resultado de la evaluación"
+
+msgid "Limiting reason if failed"
+msgstr "Causa principal si falló"
+
+msgid "Use the same labeled holdout group each time. This gives the model a biological endpoint instead of treating the management pack date as shelf life."
+msgstr "Use siempre el mismo grupo de reserva etiquetado. Así el modelo tiene un punto final biológico en lugar de tomar la fecha de empaque como vida de anaquel."
+
+msgid "Notes"
+msgstr "Notas"
+
+msgid "Save sample and continue"
+msgstr "Guardar muestra y continuar"
+
+msgid "Saving sample…"
+msgstr "Guardando muestra…"
+
+msgid "The photo is checked in the background. If it cannot be measured, you can retake it before moving on."
+msgstr "La foto se revisa en segundo plano. Si no se puede medir, puede repetirla antes de seguir."
+
+# --- Capture form (Python) ---------------------------------------------
+msgid "Today"
+msgstr "Hoy"
+
+msgid "{n} wk"
+msgstr "{n} sem."
+
+msgid "{n} wks"
+msgstr "{n} sem."
+
+msgid "Not checked"
+msgstr "Sin revisar"
+
+msgid "1 — soft"
+msgstr "1 — blanda"
+
+msgid "2 — yielding"
+msgstr "2 — cede"
+
+msgid "3 — fairly firm"
+msgstr "3 — algo firme"
+
+msgid "4 — firm"
+msgstr "4 — firme"
+
+msgid "5 — very firm"
+msgstr "5 — muy firme"
+
+msgid "Uncalibrated / demonstration"
+msgstr "Sin calibrar / demostración"
+
+msgid "Sampling station"
+msgstr "Estación de muestreo"
+
+msgid "Photo of 10 fruit on the board"
+msgstr "Foto de 10 frutas en el tablero"
+
+msgid "Second photo (optional)"
+msgstr "Segunda foto (opcional)"
+
+msgid "Random fruit across bins"
+msgstr "Frutas al azar de varios bins"
+
+msgid "Fixed holdout group"
+msgstr "Grupo de reserva fijo"
+
+msgid "Convenience sample"
+msgstr "Muestra de conveniencia"
+
+msgid "This is a shelf-life holdout assessment"
+msgstr "Esta es una evaluación del grupo de reserva"
+
+msgid "Select result"
+msgstr "Seleccione el resultado"
+
+msgid "Meets pack specification"
+msgstr "Cumple la especificación de empaque"
+
+msgid "Failed pack specification"
+msgstr "No cumple la especificación de empaque"
+
+msgid "Select limiting reason"
+msgstr "Seleccione la causa principal"
+
+msgid "Color"
+msgstr "Color"
+
+msgid "Decay"
+msgstr "Pudrición"
+
+msgid "Shrivel"
+msgstr "Arrugado"
+
+msgid "Softness"
+msgstr "Blandura"
+
+msgid "Other"
+msgstr "Otro"
+
+msgid "%(n)d fruit"
+msgstr "%(n)d frutas"
+
+msgid "%(n)d fruit (doubled sample)"
+msgstr "%(n)d frutas (muestra doble)"
+
+msgid "Cannot exceed the %(n)d fruit inspected."
+msgstr "No puede ser mayor que las %(n)d frutas revisadas."
+
+msgid "Record whether the holdout still meets specification."
+msgstr "Indique si el grupo de reserva todavía cumple la especificación."
+
+msgid "Select the limiting reason for failure."
+msgstr "Seleccione la causa principal de la falla."
+
+msgid "Photo is larger than 20 MB."
+msgstr "La foto pesa más de 20 MB."
+
+msgid "The uploaded file is not a readable image."
+msgstr "El archivo no es una imagen legible."
+
+msgid "HEIC is not supported yet. Set the phone camera to Most Compatible (JPEG)."
+msgstr "HEIC todavía no es compatible. Ponga la cámara del teléfono en Más compatible (JPEG)."
+
+msgid "Use a JPEG, PNG or WebP image."
+msgstr "Use una imagen JPEG, PNG o WebP."
+
+msgid "The image dimensions are too large."
+msgstr "La imagen es demasiado grande."
+
+msgid "After final packing, only shelf-life holdout assessments may be recorded."
+msgstr "Después del empaque final solo se pueden registrar evaluaciones del grupo de reserva."
+
+msgid "Lot %(lot)s saved. Scoring in the background."
+msgstr "Lote %(lot)s guardado. Calificando la foto en segundo plano."
+
+msgid "Lot %(lot)s was dumped; it cannot be sampled."
+msgstr "El lote %(lot)s fue desechado; no se puede muestrear."
+
+# --- Sample status -----------------------------------------------------
+msgid "Sample saved"
+msgstr "Muestra guardada"
+
+msgid "%(s)s s"
+msgstr "%(s)s s"
+
+msgid "Checking photo…"
+msgstr "Revisando la foto…"
+
+msgid "Keep the route moving"
+msgstr "Siga con la ruta"
+
+msgid "This page updates automatically. You do not need to wait before starting the next lot."
+msgstr "Esta página se actualiza sola. No necesita esperar para empezar el siguiente lote."
+
+msgid "Photo accepted"
+msgstr "Foto aceptada"
+
+msgid "Measurement recorded"
+msgstr "Medición registrada"
+
+msgid "Photo %(i)s: %(n)s fruit measured."
+msgstr "Foto %(i)s: %(n)s frutas medidas."
+
+msgid "Photo needs a retake"
+msgstr "Hay que repetir la foto"
+
+msgid "Retake before returning the fruit"
+msgstr "Repita la foto antes de regresar la fruta"
+
+msgid "Retake lot %(lot)s"
+msgstr "Repetir foto del lote %(lot)s"
+
+msgid "Next: lot %(lot)s →"
+msgstr "Siguiente: lote %(lot)s →"
+
+msgid "Route complete · view summary"
+msgstr "Ruta completa · ver resumen"
+
+msgid "Skip for now"
+msgstr "Saltar por ahora"
+
+msgid "Open lot history"
+msgstr "Ver historial del lote"

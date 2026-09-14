@@ -15,6 +15,7 @@ from django.db import models
 from django.db.models import OuterRef, Subquery
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.translation import gettext as _, gettext_lazy
 
 from lots.models import Color, Lot, Plant
 
@@ -40,7 +41,7 @@ class Prediction(models.Model):
         MED = 'med', 'Medium'
         HIGH = 'high', 'High'
 
-    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='predictions')
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name='predictions')
     as_of_date = models.DateField()
     cci_now = models.FloatField()
     stage = models.CharField(max_length=2, choices=Color.choices)
@@ -84,21 +85,21 @@ class Prediction(models.Model):
         reasons = []
         points = self.inputs.get('points', [])
         if self.model_version != MODEL_VERSION:
-            reasons.append('Rebuild forecast with the current model.')
+            reasons.append(_('Rebuild forecast with the current model.'))
         if self.as_of_date > today or (today - self.as_of_date).days > 1:
-            reasons.append('Forecast needs a refresh.')
+            reasons.append(_('Forecast needs a refresh.'))
         if len({p[0] for p in points}) < 2:
-            reasons.append('Collect usable routine photos on at least two separate days.')
+            reasons.append(_('Collect usable routine photos on at least two separate days.'))
         if points:
             received = date.fromisoformat(self.inputs['receive_date']) if self.inputs.get('receive_date') else self.lot.receive_date
             age = (today - received).days - max(p[0] for p in points)
             if age < 0 or age >= model_settings.sample_overdue_days:
-                reasons.append('Usable routine measurements are out of date; resample.')
+                reasons.append(_('Usable routine measurements are out of date; resample.'))
         return reasons
 
     @property
     def support_label(self):
-        return {'high': 'Strong trend fit', 'med': 'Limited trend fit', 'low': 'Low trend support'}[self.confidence]
+        return {'high': _('Strong trend fit'), 'med': _('Limited trend fit'), 'low': _('Low trend support')}[self.confidence]
 
 
 class ReportDelivery(models.Model):
@@ -108,7 +109,7 @@ class ReportDelivery(models.Model):
         FAILED = 'failed', 'Failed'
         SKIPPED = 'skipped', 'Skipped'
 
-    plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name='report_deliveries')
+    plant = models.ForeignKey(Plant, on_delete=models.PROTECT, related_name='report_deliveries')
     report_date = models.DateField()
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
     recipients = models.JSONField(default=list, blank=True)
@@ -134,16 +135,26 @@ class PlanAction(models.TextChoices):
     """The next action the ranked plan asks for on a lot. Codes are stable;
     lots.planning decides which one applies and in what order."""
 
-    DECAY_RISK = 'decay_risk', 'Inspect observed decay'
-    PACK_OVERDUE = 'pack_overdue', 'Pack overdue'
-    PACK_THIS_WEEK = 'pack_this_week', 'Pack this week'
-    RETAKE_PHOTO = 'retake_photo', 'Retake photo'
-    SAMPLE_DUE = 'sample_due', 'Sample due'
-    PACK_SOON = 'pack_soon', 'Pack soon'
-    SCORING = 'scoring', 'Scoring'
-    NEEDS_BASELINE = 'needs_baseline', 'Needs baseline'
-    MONITOR = 'monitor', 'Monitor'
-    REFRESH_FORECAST = 'refresh_forecast', 'Refresh forecast'
+    DECAY_RISK = 'decay_risk', gettext_lazy('Inspect observed decay')
+    PACK_OVERDUE = 'pack_overdue', gettext_lazy('Pack overdue')
+    PACK_THIS_WEEK = 'pack_this_week', gettext_lazy('Pack this week')
+    RETAKE_PHOTO = 'retake_photo', gettext_lazy('Retake photo')
+    SAMPLE_DUE = 'sample_due', gettext_lazy('Sample due')
+    PACK_SOON = 'pack_soon', gettext_lazy('Pack soon')
+    SCORING = 'scoring', gettext_lazy('Scoring')
+    NEEDS_BASELINE = 'needs_baseline', gettext_lazy('Needs baseline')
+    MONITOR = 'monitor', gettext_lazy('Monitor')
+    REFRESH_FORECAST = 'refresh_forecast', gettext_lazy('Refresh forecast')
+
+
+class MarketRegime(models.TextChoices):
+    """Weekly market context recorded with a plan so that later analysis can
+    tell a deferral made in an oversupplied week from one made in a tight
+    week. Set by the GM at publish time; never inferred."""
+
+    TIGHT = 'tight', 'Tight supply'
+    NORMAL = 'normal', 'Normal'
+    OVERSUPPLIED = 'oversupplied', 'Oversupplied'
 
 
 class PackPlan(models.Model):
@@ -152,8 +163,10 @@ class PackPlan(models.Model):
     Published by the Monday report, from the board, or by `publish_plan`.
     Every recommendation in it is frozen with the prediction it came from, so
     a management decision can be tied to exactly what the system said at the
-    time and later compared with the lot's real outcome. Plans are never
-    edited; a new version is published instead.
+    time and later compared with the lot's real outcome. Recommendations are
+    never edited; a new version is published instead. Two header fields may
+    change after publish: the GM's market_regime call and the lock
+    (locked_at, locked_by).
     """
 
     class Source(models.TextChoices):
@@ -161,21 +174,25 @@ class PackPlan(models.Model):
         BOARD = 'board', 'Published from the board'
         COMMAND = 'command', 'Management command'
 
-    plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name='pack_plans')
+    plant = models.ForeignKey(Plant, on_delete=models.PROTECT, related_name='pack_plans')
     plan_date = models.DateField()
     version = models.PositiveIntegerField(help_text='Increments per plant with every publish.')
     source = models.CharField(max_length=8, choices=Source.choices, default=Source.BOARD)
     published_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='published_plans'
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='published_plans'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     model_version = models.CharField(max_length=40)
     settings_snapshot = models.JSONField(default=dict, blank=True)
+    market_regime = models.CharField(
+        max_length=12, choices=MarketRegime.choices, blank=True,
+        help_text='Market context this week as judged by the GM: tight, normal or oversupplied. Copied onto every decision recorded against the plan.',
+    )
     locked_at = models.DateTimeField(
         null=True, blank=True, help_text='When the GM locked the week schedule against this plan.'
     )
     locked_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='locked_plans'
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='locked_plans'
     )
 
     class Meta:
@@ -199,7 +216,7 @@ class PlanRecommendation(models.Model):
     and (through `decisions`) what management did with it."""
 
     plan = models.ForeignKey(PackPlan, on_delete=models.CASCADE, related_name='recommendations')
-    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='plan_recommendations')
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name='plan_recommendations')
     prediction = models.ForeignKey(
         Prediction, on_delete=models.SET_NULL, null=True, blank=True, related_name='plan_recommendations'
     )
@@ -227,7 +244,7 @@ class PlanRecommendation(models.Model):
 
     @property
     def support_label(self):
-        return {'high': 'Strong trend fit', 'med': 'Limited trend fit', 'low': 'Low trend support'}.get(self.confidence, 'No trend')
+        return {'high': _('Strong trend fit'), 'med': _('Limited trend fit'), 'low': _('Low trend support')}.get(self.confidence, _('No trend'))
 
     @property
     def latest_decision(self):
@@ -275,10 +292,17 @@ class PlanDecision(models.Model):
     )
     notes = models.TextField(blank=True)
     decided_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='plan_decisions'
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='plan_decisions'
     )
     decided_at = models.DateTimeField(default=timezone.now)
     after_lock = models.BooleanField(default=False, help_text='Recorded after the plan was locked.')
+    # Deliberate snapshot, not a transitive dependency: PackPlan.market_regime
+    # is editable after publish, so the regime in force when this decision was
+    # recorded must be frozen here.
+    market_regime = models.CharField(
+        max_length=12, choices=MarketRegime.choices, blank=True,
+        help_text='Market context copied from the plan when the decision was recorded.',
+    )
 
     class Meta:
         ordering = ['-decided_at', '-id']
@@ -318,4 +342,6 @@ class PlanDecision(models.Model):
         self.full_clean()
         plan = self.recommendation.plan
         self.after_lock = bool(plan.locked_at and self.decided_at > plan.locked_at)
+        if not self.market_regime:
+            self.market_regime = plan.market_regime
         super().save(*args, **kwargs)

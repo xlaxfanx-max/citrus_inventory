@@ -12,15 +12,103 @@ spec leaves open, resolved here:
 * Threshold dates are anchored to receipt/observations, including crossings
   in the past. Passing time alone must never move a deadline forward.
 * Forecasts beyond the horizon have no date. Old observations lower support.
+* Prior drift rates were set for a 55 F (12.8 C) room. When the lot's room
+  setpoint is known, the prior is scaled by the bell-shaped temperature
+  response of lemon degreening (Mitalo et al. 2020, J Exp Bot: fastest near
+  15 C, suppressed at 5 C, halted near 25 C). A fitted slope already reflects
+  the room the lot sat in and is never scaled.
+* The elapsed term of a prior path integrates that factor over the lot's
+  recorded room history (`exposure`), so a room move with no new sample never
+  changes cci_now. Days with no recorded room use the 55 F reference; the
+  current room's factor applies only from today forward.
 """
 
+import math
 from datetime import timedelta
 
-MODEL_VERSION = 'v1.1-linear-cci'
+MODEL_VERSION = 'v1.3-linear-cci'
 MIN_SLOPE = 0.005          # CCI per day; below this the line is treated as flat
 MAX_FIT_POINTS = 5
 HIGH_CONF_MIN_POINTS = 4
 HIGH_CONF_MIN_R2 = 0.7
+
+TEMP_PEAK_C = 15.0         # fastest degreening
+TEMP_WIDTH_C = 7.0         # Gaussian width: ~0.13x at 5 C and 25 C, ~0.9x at 12.8 C
+PRIOR_REFERENCE_C = 12.8   # the room temperature the priors in ModelSettings describe (55 F)
+
+
+def temperature_rate_factor(temp_c):
+    """Relative degreening speed at temp_c, 1.0 at the 15 C peak."""
+    return math.exp(-((temp_c - TEMP_PEAK_C) / TEMP_WIDTH_C) ** 2)
+
+
+def prior_at_temperature(prior, temp_c):
+    """Scale a 55 F prior to the room the lot is actually in."""
+    if temp_c is None:
+        return prior
+    return prior * temperature_rate_factor(temp_c) / temperature_rate_factor(PRIOR_REFERENCE_C)
+
+
+def _reference_factor(temp_c):
+    return temperature_rate_factor(temp_c) / temperature_rate_factor(PRIOR_REFERENCE_C)
+
+
+def exposure_segments(exposure, use_temperature):
+    """(start_day, end_day, factor) pieces from [(start_day, end_day, temp_c)].
+    Unknown setpoints and disabled temperature response both give factor 1."""
+    segments = []
+    for start, end, temp_c in exposure or []:
+        if end <= start:
+            continue
+        factor = _reference_factor(temp_c) if (use_temperature and temp_c is not None) else 1.0
+        segments.append((float(start), float(end), factor))
+    return sorted(segments)
+
+
+def _rate_pieces(base_prior, start, end, segments, day_now, current_factor):
+    """Piecewise-constant CCI/day between start and end: recorded history up
+    to day_now (gaps at the reference rate), then the current room's rate."""
+    pieces = []
+    cursor = start
+    hist_end = min(end, day_now)
+    for seg_start, seg_end, factor in segments:
+        seg_start, seg_end = max(seg_start, cursor), min(seg_end, hist_end)
+        if seg_end <= seg_start:
+            continue
+        if seg_start > cursor:
+            pieces.append((cursor, seg_start, base_prior))
+        pieces.append((seg_start, seg_end, base_prior * factor))
+        cursor = seg_end
+    if hist_end > cursor:
+        pieces.append((cursor, hist_end, base_prior))
+        cursor = hist_end
+    if end > max(cursor, day_now):
+        pieces.append((max(cursor, day_now), end, base_prior * current_factor))
+    return pieces
+
+
+def prior_gain(base_prior, start, end, segments, day_now, current_factor):
+    """CCI added by the prior between two days since receipt."""
+    if end <= start:
+        return 0.0
+    return sum((b - a) * rate for a, b, rate in _rate_pieces(base_prior, start, end, segments, day_now, current_factor))
+
+
+def prior_crossing_day(base_prior, anchor_day, anchor_cci, target, segments, day_now, current_factor):
+    """Day since receipt on which the prior path reaches target. Walks the
+    recorded history forward from the anchor and then extends at the current
+    room's rate; inf when that rate is zero. An anchor already past the
+    target extrapolates backward at the rate in force at the anchor."""
+    need = target - anchor_cci
+    if need <= 0:
+        rate = next((r for a, b, r in _rate_pieces(base_prior, anchor_day, anchor_day + 1, segments, day_now, current_factor)), base_prior)
+        return anchor_day + need / rate if rate > 0 else anchor_day
+    for a, b, rate in _rate_pieces(base_prior, anchor_day, day_now, segments, day_now, current_factor):
+        if rate > 0 and rate * (b - a) >= need:
+            return a + need / rate
+        need -= rate * (b - a)
+    forward = base_prior * current_factor
+    return max(anchor_day, day_now) + need / forward if forward > 0 else float('inf')
 
 
 def ols(xs, ys):
@@ -53,12 +141,25 @@ def decay_summary(samples, flag_pct):
     return rate, bool(rate * 100 >= flag_pct or rising)
 
 
-def predict(*, as_of, receive_date, receiving_color, points, decay_samples, settings):
+def predict(*, as_of, receive_date, receiving_color, points, decay_samples, settings, room_temp_c=None, exposure=None):
     """points: [(days_since_receive, mean_cci), ...] in any order.
+    room_temp_c: current room setpoint; scales the prior drift from today forward.
+    exposure: [(start_day, end_day, setpoint_c), ...] recorded room history in
+    days since receipt; scales the prior over the elapsed term. Without it the
+    elapsed term runs at the 55 F reference rate.
     Returns a dict with the Prediction fields plus 'inputs'."""
     day_now = (as_of - receive_date).days
     yellow = settings.yellow_threshold
-    prior = settings.prior_drift(receiving_color)
+    base_prior = settings.prior_drift(receiving_color)
+    temperature_on = bool(getattr(settings, 'temperature_response', False))
+    use_temperature = temperature_on and room_temp_c is not None
+    current_factor = _reference_factor(room_temp_c) if use_temperature else 1.0
+    prior = round(base_prior * current_factor, 5) if use_temperature else base_prior
+    segments = exposure_segments(exposure, temperature_on)
+
+    def elapsed_gain(anchor_day):
+        return prior_gain(base_prior, anchor_day, day_now, segments, day_now, current_factor)
+
     # One independent visit-day per point. Extra photos/visits on the same day
     # must not increase support or overweight that day in the regression.
     by_day = {}
@@ -80,7 +181,7 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
         else:
             drift = prior
             last_day, last_cci = pts[-1]
-            cci_now = last_cci + prior * (day_now - last_day)
+            cci_now = last_cci + elapsed_gain(last_day)
             confidence = 'low'
             method = 'prior_after_flat_fit'
             notes.append(f'fitted slope {slope:.4f}/day at or below {MIN_SLOPE}; using prior {prior}')
@@ -88,13 +189,13 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
     elif len(pts) == 1:
         last_day, last_cci = pts[0]
         drift = prior
-        cci_now = last_cci + prior * (day_now - last_day)
+        cci_now = last_cci + elapsed_gain(last_day)
         confidence = 'low'
         method = 'prior_from_one_point'
         fit = None
     else:
         drift = prior
-        cci_now = settings.start_cci(receiving_color) + prior * day_now
+        cci_now = settings.start_cci(receiving_color) + elapsed_gain(0)
         confidence = 'low'
         method = 'prior_from_receiving_color'
         fit = None
@@ -105,13 +206,18 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
     if stale:
         confidence = 'low'
         notes.append(f'latest usable observation is {last_sample_age} days old; resample before acting')
+    if use_temperature and method != 'ols':
+        notes.append(f'prior drift scaled for a {room_temp_c:g} C room from today (x{prior / base_prior:.2f} vs 12.8 C)')
+    if segments and method != 'ols':
+        notes.append('elapsed prior integrated over recorded room history')
     # Compute a fixed crossing relative to receipt, rather than setting it to
-    # today once yellow. For priors, use the same fixed observation anchor.
+    # today once yellow. For priors, walk the recorded history from the same
+    # fixed observation anchor, then extend at the current room's rate.
     if method == 'ols':
         crossing_day = (yellow - intercept) / drift
-    elif drift > 0:
+    elif base_prior > 0:
         anchor_day, anchor_cci = pts[-1] if pts else (0, settings.start_cci(receiving_color))
-        crossing_day = anchor_day + (yellow - anchor_cci) / drift
+        crossing_day = prior_crossing_day(base_prior, anchor_day, anchor_cci, yellow, segments, day_now, current_factor)
     else:
         crossing_day = float('inf')
     crossing_day = max(0, crossing_day)
@@ -148,6 +254,11 @@ def predict(*, as_of, receive_date, receiving_color, points, decay_samples, sett
             'fit': fit,
             'method': method,
             'prior_drift': prior,
+            'prior_drift_at_55f': base_prior,
+            'room_temp_c': room_temp_c,
+            'temperature_factor': round(current_factor, 4) if use_temperature else None,
+            'exposure': [[round(s, 3), round(e, 3), t] for s, e, t in (exposure or [])],
+            'elapsed_prior_gain': round(elapsed_gain(pts[-1][0] if pts else 0), 4) if method != 'ols' else None,
             'start_cci': settings.start_cci(receiving_color),
             'thresholds': settings.thresholds_dict(),
             'buffer_days': settings.buffer_days,

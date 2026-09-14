@@ -1,5 +1,5 @@
-{% load static %}<!doctype html>
-<html lang="en">
+{% load static %}{% load i18n %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -12,35 +12,41 @@
 <link rel="icon" href="{% static 'icons/icon-192.png' %}">
 <link rel="stylesheet" href="{% static 'app.css' %}">
 <script src="{% static 'app.js' %}" defer></script>
-<title>{% block title %}Plant board{% endblock %} · Lemon Tracker</title>
+<title>{% block title %}{% trans "Plant board" %}{% endblock %} · Lemon Tracker</title>
 {% block head %}{% endblock %}
 </head>
 <body class="{% if user.is_authenticated %}authenticated{% else %}signed-out{% endif %}">
-<a class="skip-link" href="#main-content">Skip to content</a>
+<a class="skip-link" href="#main-content">{% trans "Skip to content" %}</a>
 <header class="app-header">
   <div class="header-top">
-    <a class="brand" href="{% url 'lots:board' %}" aria-label="Lemon Tracker home"><strong>Saticoy</strong><span>Lemon storage</span></a>
+    <a class="brand" href="{% url 'lots:board' %}" aria-label="Lemon Tracker home"><strong>Saticoy</strong><span>{% trans "Lemon storage" %}</span></a>
     <span class="header-date">{% now 'l, F j, Y' %}</span>
-    {% if user.is_authenticated %}<button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="workspace-navigation" hidden>{% include 'includes/icon.html' with name='menu' %}<span>Menu</span></button>{% endif %}
+    {% if user.is_authenticated %}<button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="workspace-navigation" hidden>{% include 'includes/icon.html' with name='menu' %}<span>{% trans "Menu" %}</span></button>{% endif %}
   </div>
   {% if user.is_authenticated %}
   <div class="navigation" id="workspace-navigation">
-    <nav aria-label="Main navigation">
-      <a href="{% url 'lots:board' %}" class="nav-link {% if request.resolver_match.url_name == 'board' or request.resolver_match.url_name == 'lot_detail' %}active{% endif %}" {% if request.resolver_match.url_name == 'board' or request.resolver_match.url_name == 'lot_detail' %}aria-current="page"{% endif %}>Packing plan</a>
-      <a href="{% url 'forecast:plan_list' %}" class="nav-link {% if request.resolver_match.url_name|slice:':5' == 'plan_' %}active{% endif %}" {% if request.resolver_match.url_name|slice:':5' == 'plan_' %}aria-current="page"{% endif %}>Decisions</a>
-      {% if is_foreman %}<a href="{% url 'sampling:picker' %}" class="nav-link {% if request.resolver_match.app_name == 'sampling' %}active{% endif %}" {% if request.resolver_match.app_name == 'sampling' %}aria-current="page"{% endif %}>Sample route</a>{% endif %}
+    <nav aria-label="{% trans 'Main navigation' %}">
+      <a href="{% url 'lots:board' %}" class="nav-link {% if request.resolver_match.url_name == 'board' or request.resolver_match.url_name == 'lot_detail' %}active{% endif %}" {% if request.resolver_match.url_name == 'board' or request.resolver_match.url_name == 'lot_detail' %}aria-current="page"{% endif %}>{% trans "Packing plan" %}</a>
+      <a href="{% url 'forecast:plan_list' %}" class="nav-link {% if request.resolver_match.url_name|slice:':5' == 'plan_' %}active{% endif %}" {% if request.resolver_match.url_name|slice:':5' == 'plan_' %}aria-current="page"{% endif %}>{% trans "Decisions" %}</a>
+      {% if is_foreman %}<a href="{% url 'sampling:picker' %}" class="nav-link {% if request.resolver_match.app_name == 'sampling' %}active{% endif %}" {% if request.resolver_match.app_name == 'sampling' %}aria-current="page"{% endif %}>{% trans "Sample route" %}</a>{% endif %}
       {% if is_gm %}
-      <a href="{% url 'lots:imports' %}" class="nav-link {% if 'import' in request.resolver_match.url_name %}active{% endif %}" {% if 'import' in request.resolver_match.url_name %}aria-current="page"{% endif %}>Imports</a>
-      <a href="{% url 'forecast:accuracy' %}" class="nav-link {% if request.resolver_match.url_name == 'accuracy' %}active{% endif %}" {% if request.resolver_match.url_name == 'accuracy' %}aria-current="page"{% endif %}>Validation</a>
-      <a href="{% url 'forecast:readiness' %}" class="nav-link {% if request.resolver_match.url_name == 'readiness' %}active{% endif %}" {% if request.resolver_match.url_name == 'readiness' %}aria-current="page"{% endif %}>Readiness</a>
+      <a href="{% url 'lots:imports' %}" class="nav-link {% if 'import' in request.resolver_match.url_name %}active{% endif %}" {% if 'import' in request.resolver_match.url_name %}aria-current="page"{% endif %}>{% trans "Imports" %}</a>
+      <a href="{% url 'forecast:accuracy' %}" class="nav-link {% if request.resolver_match.url_name == 'accuracy' %}active{% endif %}" {% if request.resolver_match.url_name == 'accuracy' %}aria-current="page"{% endif %}>{% trans "Validation" %}</a>
+      <a href="{% url 'forecast:readiness' %}" class="nav-link {% if request.resolver_match.url_name == 'readiness' %}active{% endif %}" {% if request.resolver_match.url_name == 'readiness' %}aria-current="page"{% endif %}>{% trans "Readiness" %}</a>
       {% endif %}
 
-      {% if is_admin %}<a href="{% url 'lots:settings' %}" class="nav-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}" {% if request.resolver_match.url_name == 'settings' %}aria-current="page"{% endif %}>Settings</a>{% endif %}
-      {% if user.is_staff %}<a href="/admin/" class="nav-link">Administration</a>{% endif %}
+      {% if is_admin %}<a href="{% url 'lots:settings' %}" class="nav-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}" {% if request.resolver_match.url_name == 'settings' %}aria-current="page"{% endif %}>{% trans "Settings" %}</a>{% endif %}
+      {% if user.is_staff %}<a href="/admin/" class="nav-link">{% trans "Administration" %}</a>{% endif %}
     </nav>
     <div class="account">
-      <span>{{ user.get_short_name|default:user.username }}<small>{% if is_admin %}Administrator{% elif is_gm %}General manager{% else %}Foreman{% endif %}</small></span>
-      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="logout" type="submit">Log out</button></form>
+      <form method="post" action="{% url 'set_language' %}" class="lang-switch" aria-label="{% trans 'Language' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" name="language" value="en" aria-pressed="{% if LANGUAGE_CODE|slice:':2' == 'en' %}true{% else %}false{% endif %}" lang="en">English</button>
+        <button type="submit" name="language" value="es" aria-pressed="{% if LANGUAGE_CODE|slice:':2' == 'es' %}true{% else %}false{% endif %}" lang="es">Español</button>
+      </form>
+      <span>{{ user.get_short_name|default:user.username }}<small>{% if is_admin %}{% trans "Administrator" %}{% elif is_gm %}{% trans "General manager" %}{% else %}{% trans "Foreman" %}{% endif %}</small></span>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="logout" type="submit">{% trans "Log out" %}</button></form>
     </div>
   </div>
   {% endif %}
@@ -49,14 +55,14 @@
   <main id="main-content" tabindex="-1">
     {% if user.is_authenticated %}
     <details class="planning-notice">
-      <summary><span>{% if demo_mode %}<strong>Demonstration mode</strong><span class="notice-separator">·</span>Example data. {% endif %}Color estimates require manager review. Shelf life is unvalidated.</span><span class="notice-more">Details</span></summary>
-      <p>{% if demo_mode %}Example records do not establish field accuracy. {% endif %}Color-based planning estimates require manager review. Remaining marketable life has not been validated.</p>
+      <summary><span>{% if demo_mode %}<strong>{% trans "Demonstration mode" %}</strong><span class="notice-separator">·</span>{% trans "Example data." %} {% endif %}{% trans "Color estimates require manager review. Shelf life is unvalidated." %}</span><span class="notice-more">{% trans "Details" %}</span></summary>
+      <p>{% if demo_mode %}{% trans "Example records do not establish field accuracy." %} {% endif %}{% trans "Color-based planning estimates require manager review. Remaining marketable life has not been validated." %}</p>
     </details>
     {% endif %}
     {% if messages %}<ul class="messages" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
     {% block content %}{% endblock %}
   </main>
-  <footer>Saticoy Lemon Association · Lemon storage</footer>
+  <footer>Saticoy Lemon Association · {% trans "Lemon storage" %}</footer>
 </div>
 </body>
 </html>

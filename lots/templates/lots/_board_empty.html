@@ -1,12 +1,12 @@
-<div class="empty-state">
+{% load i18n %}<div class="empty-state">
   {% include 'includes/icon.html' with name='search' %}
   {% if query or room_id or attention != 'all' %}
-    <strong>No lots match this view</strong>
-    <p>Try a different search or clear your filters to see the full packing plan.</p>
-    <a class="btn ghost" href="{% url 'lots:board' %}{% if plants and plant %}?plant={{ plant.code|urlencode }}{% endif %}">Clear filters</a>
+    <strong>{% trans "No lots match this view" %}</strong>
+    <p>{% trans "Try a different search or clear your filters to see the full packing plan." %}</p>
+    <a class="btn ghost" href="{% url 'lots:board' %}{% if plants and plant %}?plant={{ plant.code|urlencode }}{% endif %}">{% trans "Clear filters" %}</a>
   {% else %}
-    <strong>No inventory in storage</strong>
-    <p>{% if is_gm %}Import receiving records to start building this plant’s packing plan.{% else %}New lots appear here once receiving records are imported by your manager.{% endif %}</p>
-    {% if is_gm %}<a class="btn" href="{% url 'lots:imports' %}">Import receiving records</a>{% endif %}
+    <strong>{% trans "No inventory in storage" %}</strong>
+    <p>{% if is_gm %}{% trans "Import receiving records to start building this plant’s packing plan." %}{% else %}{% trans "New lots appear here once receiving records are imported by your manager." %}{% endif %}</p>
+    {% if is_gm %}<a class="btn" href="{% url 'lots:imports' %}">{% trans "Import receiving records" %}</a>{% endif %}
   {% endif %}
 </div>

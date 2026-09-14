@@ -1,0 +1,318 @@
+<title>Lemon Tracker Review, 10 September</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+:root{
+  --ground:#F5F7F3; --surface:#FFFFFF; --ink:#1B2620; --muted:#5F6B63; --rule:#D3DAD2;
+  --green:#2E5C3E; --green-soft:#E3EDE4; --lemon:#D4B000; --lemon-soft:#FBF3C4;
+  --red:#A63A2C; --red-soft:#F7E3DF; --amber:#8A6A00;
+  --dg:#2F5A2B; --lg:#7FA54B; --sv:#C9CBA6; --yl:#E8C61E;
+  --font-d:"Archivo",system-ui,Helvetica,Arial,sans-serif;
+  --font-b:"Source Serif 4",Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#141A16; --surface:#1B231E; --ink:#E7EBE4; --muted:#9BA79E; --rule:#2F3A32;
+    --green:#8FC39C; --green-soft:#22312A; --lemon:#E6C63A; --lemon-soft:#3A3410;
+    --red:#E58A7C; --red-soft:#3D231F; --amber:#E0B84A;
+    --dg:#4C8A44; --lg:#9BC169; --sv:#C9CBA6; --yl:#E8C61E;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#141A16; --surface:#1B231E; --ink:#E7EBE4; --muted:#9BA79E; --rule:#2F3A32;
+  --green:#8FC39C; --green-soft:#22312A; --lemon:#E6C63A; --lemon-soft:#3A3410;
+  --red:#E58A7C; --red-soft:#3D231F; --amber:#E0B84A;
+  --dg:#4C8A44; --lg:#9BC169; --sv:#C9CBA6; --yl:#E8C61E;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-b);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--green);text-decoration-thickness:1px;text-underline-offset:2px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--lemon);outline-offset:2px}
+.page{max-width:1180px;margin:0 auto;padding:32px 24px 80px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px}
+@media (max-width:900px){.page{grid-template-columns:minmax(0,1fr);gap:24px}}
+nav.toc{position:sticky;top:24px;align-self:start;font-family:var(--font-d);font-size:13px}
+@media (max-width:900px){nav.toc{position:static}}
+nav.toc .eyebrow{margin-bottom:10px}
+nav.toc ol{list-style:none;margin:0;padding:0;border-left:2px solid var(--rule)}
+nav.toc li a{display:block;padding:5px 12px;color:var(--muted);text-decoration:none;border-left:2px solid transparent;margin-left:-2px}
+nav.toc li a:hover{color:var(--ink);border-left-color:var(--lemon)}
+nav.toc li.sub a{padding-left:24px;font-size:12px}
+main{max-width:760px}
+.eyebrow{font-family:var(--font-d);font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--font-d);font-weight:700;font-size:clamp(30px,4vw,42px);line-height:1.08;letter-spacing:-.02em;margin:8px 0 12px;text-wrap:balance}
+h2{font-family:var(--font-d);font-weight:700;font-size:24px;letter-spacing:-.015em;margin:56px 0 12px;text-wrap:balance;padding-top:16px;border-top:2px solid var(--ink)}
+h3{font-family:var(--font-d);font-weight:600;font-size:17px;margin:32px 0 8px;text-wrap:balance}
+p{margin:0 0 14px;max-width:68ch}
+ul,ol{padding-left:22px;margin:0 0 14px;max-width:68ch}
+li{margin-bottom:6px}
+.lede{font-size:19px;color:var(--ink);max-width:66ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-family:var(--font-d);font-size:13px;color:var(--muted);margin-bottom:28px}
+.verdict{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--lemon);padding:20px 24px;margin:0 0 36px}
+.verdict p{font-size:16px}
+.verdict p:last-child{margin-bottom:0}
+.ladder{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:22px 0 32px;border:1px solid var(--rule);border-radius:4px;overflow:hidden;font-family:var(--font-d)}
+.ladder div{padding:10px 12px;font-size:12px;line-height:1.35;border-right:1px solid var(--rule);background:var(--surface)}
+.ladder div:last-child{border-right:0}
+.ladder b{display:block;font-size:14px;margin-bottom:3px}
+.ladder .sw{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.15)}
+.ladder small{color:var(--muted);display:block;margin-top:4px;font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;width:100%;font-family:var(--font-d);font-size:13.5px;line-height:1.4;margin:0 0 6px}
+.tbl{overflow-x:auto;margin:14px 0 24px;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+th{text-align:left;font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--rule);vertical-align:top;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+td.k{font-weight:600;white-space:nowrap}
+.tbl.ranked td:first-child{font-weight:700;white-space:nowrap}
+.chip{display:inline-block;font-family:var(--font-d);font-size:11px;font-weight:600;letter-spacing:.04em;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.chip.ok{background:var(--green-soft);color:var(--green)}
+.chip.warn{background:var(--lemon-soft);color:var(--amber)}
+.chip.bad{background:var(--red-soft);color:var(--red)}
+.chip.eff{background:transparent;border:1px solid var(--rule);color:var(--muted)}
+.finding{margin:22px 0;padding:0 0 0 18px;border-left:3px solid var(--rule)}
+.finding.bad{border-left-color:var(--red)}
+.finding.warn{border-left-color:var(--lemon)}
+.finding h3{margin:0 0 6px}
+.finding .tag{font-family:var(--font-d);font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-right:8px}
+figure{margin:24px 0 28px;background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:16px 16px 10px}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-family:var(--font-d);font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.45}
+.svg-t{font-family:var(--font-d);font-size:11px;fill:var(--muted)}
+.svg-l{font-family:var(--font-d);font-size:11.5px;font-weight:600;fill:var(--ink)}
+.research h3 .src{font-weight:500;color:var(--muted);font-size:14px}
+.note{font-size:15px;color:var(--muted)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px 28px}
+@media (max-width:700px){.cols{grid-template-columns:1fr}}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em;background:var(--green-soft);padding:1px 5px;border-radius:3px}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+html{scroll-behavior:smooth}
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Contents">
+  <div class="eyebrow">Contents</div>
+  <ol>
+    <li><a href="#verdict">Verdict</a></li>
+    <li><a href="#state">1 · State of the product</a></li>
+    <li class="sub"><a href="#findings">Walk-through findings</a></li>
+    <li class="sub"><a href="#codereview">Code review</a></li>
+    <li><a href="#research">2 · Outside research</a></li>
+    <li class="sub"><a href="#physiology">Storage physiology</a></li>
+    <li class="sub"><a href="#process">Packinghouse process</a></li>
+    <li class="sub"><a href="#rotation">Rotation science</a></li>
+    <li><a href="#ranked">3 · Ranked improvements</a></li>
+    <li><a href="#caveats">4 · Caveats</a></li>
+  </ol>
+</nav>
+
+<main>
+<div class="eyebrow">Saticoy lemon storage tracker · Pre-launch branch</div>
+<h1>Product review and outside research, 10 September 2026</h1>
+<div class="meta">
+  <span>Branch <code>prelaunch-items</code>, uncommitted</span>
+  <span>41 files · +1,218 / −366</span>
+  <span>133 tests pass</span>
+  <span>Go-live target mid-October 2026</span>
+</div>
+
+<p class="lede">Review of the pre-launch work built on 7 September, a walk-through as GM and as foreman on desktop and phone, an independent code review of the diff, and three outside-research passes on ground the earlier research did not cover: how stored lemons actually fail, how good packinghouses run their rooms and grades, and how a quality-based rotation forecast should be validated.</p>
+
+<div class="verdict" id="verdict">
+  <div class="eyebrow">Verdict</div>
+  <p>The branch closes seven of the ten 7 September items cleanly and the plumbing is sound: every new endpoint is role-gated and plant-pinned, migrations are additive, the Spanish catalogue is complete. Two things stand between it and launch. The new temperature prior is applied to days already spent, keyed to the lot's current room, so a room move silently rewrites a lot's colour history and can erase its pack date. And the headline number is fragile: on 10 September not one of the 28 demo lots shows a pack date, because a forecast older than a day or a sample older than ten days blanks the date instead of degrading it.</p>
+  <p>The research changes the science more than the screens. Decay thresholds should follow the USDA grade ladder (1 % at shipping point, 3 % at destination) rather than a single 2 % flag. The storage-temperature band depends on colour class and has a cold-side wall the app does not watch. Lots already yellow need a hold budget, not a pack-by date in the past. And the pilot evaluation must be pre-registered around forecast skill, because a one-to-two-month pilot cannot statistically show a 10 to 20 % cut in dump rate.</p>
+</div>
+
+<div class="ladder" aria-label="Colour classes and the app's CCI thresholds">
+  <div><b><span class="sw" style="background:var(--dg)"></span>Dark green</b>Hold budget 5–6 months<small>CCI below −7.0</small></div>
+  <div><b><span class="sw" style="background:var(--lg)"></span>Light green</b>About 2 months<small>−7.0 to −3.0</small></div>
+  <div><b><span class="sw" style="background:var(--sv)"></span>Silver</b>About 6 weeks<small>−3.0 to 2.0</small></div>
+  <div><b><span class="sw" style="background:var(--yl)"></span>Yellow</b>Weeks<small>2.0 and above</small></div>
+</div>
+
+<h2 id="state">1 · State of the product</h2>
+
+<div class="tbl"><table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td class="k">Tests</td><td>133 pass (<code>lots sampling forecast</code>, SQLite, after <code>collectstatic</code>)</td></tr>
+<tr><td class="k">Checks and migrations</td><td>No issues; no missing migrations; compiled <code>django.mo</code> matches the <code>.po</code></td></tr>
+<tr><td class="k">GM screens</td><td>Board, plan list, plan detail, lot detail, readiness, validation on desktop and 375 px</td></tr>
+<tr><td class="k">Foreman screens</td><td>Picker and capture in Spanish on desktop and 375 px</td></tr>
+<tr><td class="k">One-tap Accept</td><td>Click on lot 26-1022 wrote an <code>accepted</code> decision and updated the row and counters in place</td></tr>
+<tr><td class="k">Empty capture submit</td><td>Step 1 outlined red, "Tome la foto antes de guardar.", scrolled into view <span class="chip ok">B4 closed</span></td></tr>
+<tr><td class="k">Lot detail</td><td>Overdue tile toned red with "87 days overdue", whole bins, key/value metadata grid <span class="chip ok">B2 B6 P4 closed</span></td></tr>
+<tr><td class="k">Settings page</td><td>403 for the GM (admin-only) and not linked from the GM menu</td></tr>
+</table></div>
+
+<h3>What the branch got right</h3>
+<ul>
+  <li>Plan detail is a one-screen Monday task: Accept per row, "Accept all remaining (n)", market-regime select, phone cards with the decision block last, fetch save carrying CSRF.</li>
+  <li>Capture: 25-fruit default with a 50-fruit doubled sample, decayed-fruit stepper, visible step errors, capture timer saved per sample, station select, quality and holdout sections collapsed by default.</li>
+  <li>Foreman sessions default to Spanish through middleware; the picker and capture pages are fully translated.</li>
+  <li>Room setpoints are in the data, the lot page shows setpoint and a rot-risk clock, and every prediction carries its model version.</li>
+</ul>
+
+<h3 id="findings">Findings from the walk-through</h3>
+
+<div class="finding bad"><h3><span class="tag">F1</span>No lot on the board has a pack date today</h3>
+<p>All 28 lots read "Indicative pack date · Not available" and the "Known bins due · 7 days" tile is 0. Two rules suppress the date entirely: a forecast older than one day, and a latest usable sample ten or more days old. Running the nightly build cleared the first; the second still blanks 27 of 28 lots because the demo samples are 9 to 14 days old. In production a missed sampling week erases every forecast the GM plans against. The date should degrade, not vanish: show the last usable date greyed with its sample age, keep the bins-due tile counting it, and reserve "Not available" for lots with no forecast at all.</p></div>
+
+<div class="finding bad"><h3><span class="tag">F2</span>Lots already yellow get a pack-by date in the past and no forward guidance</h3>
+<p>Lot 26-1021 crossed CCI 2.0 around 22 June. Under model v1 the record said "pack by Aug 25"; under v1.2 it says "pack by June 15", so the same lot went from 16 to 87 days overdue between plan v1 and today with no new evidence. Retaining the crossing is the honest choice, but a date months in the past says nothing about how long the fruit can still be held. The hold-budget ladder above is still not implemented. For lots at or past a band the operative number is days of hold budget remaining, driven by weeks since crossing, decay trend and the storage clock. The same 15 points also went from "Strong trend fit" to "Low trend support" because the staleness rule now forces confidence low: a label change, not a fit change.</p></div>
+
+<div class="finding warn"><h3><span class="tag">F3</span>The board and the plan disagree on open decisions</h3>
+<p>The board says 7 recommendations await a decision; the plan page says 15. The board counts live rows whose current action requires a decision; the plan counts frozen recommendations. Show the plan's number on the board, since that is what the scorecard measures, and explain any difference.</p></div>
+
+<div class="finding warn"><h3><span class="tag">F4</span>The rot-risk clock sits on a knife edge and prints noise</h3>
+<p>The clock counts weeks at or above 13.0 °C. The seeded cold rooms run at 55 °F, which is 12.8 °C, so one degree Fahrenheit flips a lot from "0.0 wk" to counting its whole life. Saticoy's own published storage setting is 50 to 52 °F, so the clock as tuned would never trip at the real plant. Today "0.0 wk warm storage" appears on all 28 rows, every phone card and the lot page.</p>
+<figure>
+<svg viewBox="0 0 720 190" role="img" aria-labelledby="tw-title">
+<title id="tw-title">Lemon storage temperature window from 0 to 20 °C with chilling-injury and rot zones</title>
+<defs>
+<pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--rule)" stroke-width="2"/></pattern>
+</defs>
+<!-- scale: x = 40 + t*32, t in °C 0..20 -->
+<rect x="40" y="60" width="640" height="44" fill="var(--surface)" stroke="var(--rule)"/>
+<rect x="40" y="60" width="160" height="44" fill="var(--red-soft)"/>
+<rect x="200" y="60" width="120" height="44" fill="url(#hatch)"/>
+<rect x="360" y="60" width="64" height="44" fill="var(--lemon-soft)"/>
+<rect x="424" y="60" width="64" height="44" fill="var(--green-soft)"/>
+<rect x="456" y="60" width="224" height="44" fill="var(--red-soft)" opacity=".55"/>
+<rect x="360" y="60" width="128" height="44" fill="none" stroke="var(--ink)" stroke-width="1.5"/>
+<!-- ticks -->
+<g class="svg-t">
+<line x1="40" y1="104" x2="40" y2="110" stroke="var(--muted)"/><text x="40" y="124" text-anchor="middle">0 °C</text>
+<line x1="200" y1="104" x2="200" y2="110" stroke="var(--muted)"/><text x="200" y="124" text-anchor="middle">5</text>
+<line x1="360" y1="104" x2="360" y2="110" stroke="var(--muted)"/><text x="360" y="124" text-anchor="middle">10</text>
+<line x1="456" y1="104" x2="456" y2="110" stroke="var(--muted)"/><text x="456" y="124" text-anchor="middle">13</text>
+<line x1="488" y1="104" x2="488" y2="110" stroke="var(--muted)"/><text x="488" y="124" text-anchor="middle">14</text>
+<line x1="680" y1="104" x2="680" y2="110" stroke="var(--muted)"/><text x="680" y="124" text-anchor="middle">20 °C</text>
+</g>
+<!-- zone labels -->
+<g class="svg-l">
+<text x="120" y="48" text-anchor="middle">Chilling injury within weeks</text>
+<text x="280" y="48" text-anchor="middle" fill="var(--muted)">Injury over months</text>
+<text x="392" y="48" text-anchor="middle">Yellow</text>
+<text x="456" y="48" text-anchor="middle">Green</text>
+<text x="600" y="48" text-anchor="middle">Rot high after 3 months</text>
+</g>
+<!-- markers -->
+<g>
+<line x1="360" y1="138" x2="392" y2="138" stroke="var(--ink)" stroke-width="3"/><text class="svg-t" x="376" y="154" text-anchor="middle">Saticoy 50–52 °F</text>
+<line x1="450" y1="132" x2="450" y2="146" stroke="var(--ink)" stroke-width="2"/><text class="svg-t" x="450" y="160" text-anchor="middle">Seeded 55 °F</text>
+<line x1="456" y1="132" x2="456" y2="146" stroke="var(--red)" stroke-width="2" stroke-dasharray="3 2"/><text class="svg-t" x="500" y="176" text-anchor="middle" fill="var(--red)">App clock trips at 13.0 °C</text>
+</g>
+</svg>
+<figcaption>The window between chilling injury and rot, from UC Davis, Cargo Handbook and Cohen 1988. Yellow fruit is held at 10 to 11 °C and green fruit at 12 to 14 °C; the seeded 55 °F setpoint sits 0.2 °C below the app's 13 °C trip line, and nothing watches the cold side.</figcaption>
+</figure></div>
+
+<div class="finding warn"><h3><span class="tag">F5</span>The capture screen contradicts itself on the fruit count</h3>
+<p>Step 1 reads "Fotografíe 10 frutas / Diez limones en el tablero" while step 4 reads "Frutas podridas de 25". The board holds ten lemons and the second photo is optional, so a foreman cannot photograph 25. Say it plainly: colour from the 10 photographed fruit, decay from 25 inspected, or move to three photos. As built, the 25-fruit argument applies only to the decay count.</p></div>
+
+<div class="finding"><h3><span class="tag">F6</span>Spanish stops at the foreman's own screens</h3>
+<p>The foreman's board mixes languages ("Prioridades del inventario" beside "Lot / grower", "Deferred", "16 days overdue"); lot detail and plan detail have no translation tags, and the foreman can open all three.</p></div>
+
+<div class="finding"><h3><span class="tag">F7</span>Smaller items</h3>
+<ul>
+<li>Photo cards print "no image file" for every demo photo; show a placeholder.</li>
+<li>The foreman answered "Yellow · pack within 1 wk" ten weeks running on lot 26-1021 while it stayed in storage. Surface "foreman has said pack-this-week for n weeks" as its own flag; it is the strongest human signal the system collects.</li>
+<li>Validation reports 0 of 14 packed lots labelled; the new packout quality form is only a collapsed row on the lot page. Link to it from Validation.</li>
+<li>Readiness shows 0 timestamped room moves and 0 temperature readings, so the temperature-band model runs on setpoints alone.</li>
+</ul></div>
+
+<h3 id="codereview">Independent code review of the diff</h3>
+<p>Two blockers, five should-fix items and a dozen smaller ones; both blockers and the first should-fix were re-verified by hand against the source. The full list with file and line references is in the appendix.</p>
+<div class="tbl"><table>
+<tr><th></th><th>Finding</th><th>Fix</th></tr>
+<tr><td><span class="chip bad">Blocker</span></td><td>The temperature prior is applied retroactively, keyed to the current room. On the one-point and receiving-colour paths <code>cci_now = anchor + prior × elapsed_days</code> uses the scaled prior. Moving a 30-day-old dark-green lot from 55 °F to 41 °F drops the factor to about 0.14, re-stages the lot and pushes the crossing past the horizon, erasing the pack date with no new observation.</td><td>Integrate the rate factor over the room-exposure intervals already computed for the elapsed term; use the current room's factor only from today forward. Test that a room move with no new sample leaves <code>cci_now</code> unchanged.</td></tr>
+<tr><td><span class="chip bad">Blocker</span></td><td>The model-version bump blanks every board until the nightly rebuild. Neither the Dockerfile nor the web script runs <code>build_predictions</code>.</td><td>Run it as a release step after <code>migrate</code>.</td></tr>
+<tr><td><span class="chip warn">Should fix</span></td><td>The i18n context processor is missing, so <code>&lt;html lang&gt;</code> is "en" on Spanish pages and both toggle buttons show unpressed. The existing test passes because it matches a <code>&lt;button lang="es"&gt;</code>.</td><td>One line in settings; tighten the assertion.</td></tr>
+<tr><td><span class="chip warn">Should fix</span></td><td>Publishing with market "Not set" inherits the previous plan's regime. The language cookie lacks Secure, HttpOnly and SameSite and outlives logout. Capture leaves Save disabled after a failed POST. Frozen evidence notes are written in the publisher's language.</td><td>Sentinel for "unknown"; cookie flags and clear on logout; re-enable on <code>pageshow</code>; publish under English.</td></tr>
+</table></div>
+
+<h2 id="research">2 · What the outside research says</h2>
+<p class="note">Three agents, roughly 100 searches and direct reads of the USDA lemon standard and inspection instructions, UC Davis, CRI South Africa, Saticoy's own operations page, the Sunkist packinghouse licence and about forty journal papers. Every claim is cited in the appendix; blocked sources are flagged there.</p>
+
+<div class="research">
+<h3 id="physiology">2.1 Storage physiology and treatments <span class="src">· agent 1</span></h3>
+<ul>
+<li><b>Decay thresholds are regulatory.</b> U.S. No. 1 and No. 2 lemons allow at most 1 % decay at shipping point and 3 % at destination, inside 5 % serious damage and 10 % total defects; decay is serious damage in any amount and contact spot scores the same. The "5 % dump" rule appears only in secondary sources.</li>
+<li><b>Sour rot is the California long-storage problem.</b> A 2020 to 2023 packinghouse survey was triggered by high sour rot on propiconazole-treated lemons in extended storage; resistant strains carry no fitness cost, and senescent tissue raised sour rot from 5 % to 68 %. Imazalil, TBZ, pyrimethanil and fludioxonil do not control it; natamycin does. Decay type matters, not just decay count.</li>
+<li><b>The temperature window has two walls.</b> Chilling injury below about 10 °C over months and below 5 °C quickly; high rot at 13 °C after three months. Sources disagree on the optimum; the reconciling reading is a colour-class band, greener fruit warmer.</li>
+<li><b>Peteca and ethylene.</b> Peteca can appear 3 to 5 days after harvest, yellow fruit is more susceptible than silver, 100 % RH raises it, polyethylene wax more than carnauba. Storage rooms should stay at or below 0.1 ppm ethylene; button senescence is the entry for Alternaria.</li>
+<li><b>Weight loss</b> runs about 1.2 % per week at 8 °C and 85 to 90 % RH; softening tracks water loss, which is why storage wax goes on before the hold.</li>
+<li><b>Treatment timing and residues.</b> Treat within 24 hours of harvest in warm weather; 2,4-D is prohibited in many export markets; Japan labels postharvest fungicides as food additives; Korea's positive list defaults to 0.01 ppm. Export lots carry more sour-rot exposure because export-friendly chemistry does not control it.</li>
+</ul>
+
+<h3 id="process">2.2 Packinghouse processes and standards <span class="src">· agent 2</span></h3>
+<ul>
+<li><b>No citrus body publishes a rotation rule.</b> The principle is quality-based: green Eureka stores about 90 days at 10 °C, yellow about 30; juice and acid rise during storage, so green fruit gains value for weeks before it loses it. How a house picks the next lot when colour, age, decay and customer spec conflict is tacit knowledge.</li>
+<li><b>Saticoy's flow is two-pass.</b> Wash and pre-grade, storage by size and grade at 50 to 52 °F and 90 to 95 % RH, then re-wash, pack wax, second optical grade and hand inspection. The inventory unit is the pre-graded bin: size and colour known, final grade unknown until it runs.</li>
+<li><b>Why true FEFO is hard.</b> Bins are stacked several high and the oldest is often at the back or bottom; blocked aisles are a documented decay cause. Bin position is a planning input.</li>
+<li><b>Grades encode "ready" and "no longer saleable".</b> The USDA standard, amended 13 May 2026, separates a 10 % colour tolerance, firmness, and the decay ladder; California adds a 15 % aggregate. Export eligibility is set by grove and packinghouse programs, not fruit quality.</li>
+<li><b>Traceability.</b> Fresh citrus is not on the FSMA 204 list (compliance date for listed foods is 20 July 2028); PTI GS1-128 labels are the retailer-driven norm.</li>
+<li><b>Pool accounting.</b> Under the Sunkist packinghouse licence, growers are paid the pool's average for the grade, size and period in which fruit was packed and sold. The pack date decides the pool, so a hold decision moves grower money, which is the case for the decision record.</li>
+<li><b>No public lemon benchmarks</b> exist for repack loss, dump %, days in storage or room fill.</li>
+</ul>
+
+<h3 id="rotation">2.3 Rotation science and validation <span class="src">· agent 3</span></h3>
+<ul>
+<li><b>FEFO evidence is real but not citrus.</b> Strawberry and banana pilots cut losses by 8 to 14 % of volume; dynamic shelf life extended usable life 13.8 % for fruit. Per-box shelf life carried a ±5-day SD, so lot-average forecasts are the realistic ambition.</li>
+<li><b>Kiwifruit is the commercial analogue.</b> Zespri releases lines by the firmness of the third-softest of 90 fruit, sets ship-by weeks by storage characteristic, and pays growers for storage potential. A ship-by week per lot is the hold budget the app is missing.</li>
+<li><b>What 25 fruit can say.</b> The lot mean is known to ±0.39 s; with a within-lot SD of 2 CCI that is ±0.8. Percentiles are different: with 25 fruit the second-lowest is about the 8th percentile. The app's P10/P90 from 10 fruit are the minimum and maximum. Report mean ± SE or a tolerance bound.</li>
+<li><b>Validation.</b> Repeated samples within a lot are correlated, so random splits inflate skill: use leave-one-lot-out and forward-chaining hindcast, RMSE in days against a naive baseline, and calibration. Lots packed before reaching the band are right-censored; evaluating only lots that reached it is selection bias.</li>
+<li><b>Power.</b> Showing a 20 % relative cut in a 20 % lot dump rate needs about 1,447 lots per arm; a 50 % cut still needs 199. A continuous per-lot outcome needs about 44 lots per arm for a 3-point drop with SD 5. Interleave weeks or rooms rather than pre/post.</li>
+<li><b>Temperature.</b> ±1 °C is ±7 to 13 % of days; temperature variability tripled prediction uncertainty relative to kinetic parameters; commercial rooms swing about 3 °C daily and run warmer near doors. Logger data beat setpoints.</li>
+<li><b>Decision rules and people.</b> Act when P(event) exceeds the cost-loss ratio; uncertainty forecasts improved decisions and preserved trust after misses; 75 to 80 % of system forecasts get manually adjusted, and people use an algorithm more when they can modify it. An "accepted %" target would be the wrong scorecard.</li>
+</ul>
+</div>
+
+<h2 id="ranked">3 · Ranked improvements</h2>
+<p class="note">Effort: S under a day, M a few days, L a sprint or more. Items reference the findings (F), the code review (CR) and the research sections.</p>
+
+<h3>A · Before the mid-October go-live</h3>
+<div class="tbl ranked"><table>
+<tr><th>#</th><th>Improvement</th><th>Why now</th><th>Effort</th></tr>
+<tr><td>A1</td><td><b>Fix the retroactive temperature prior</b> (CR). Integrate the rate factor over room-exposure intervals for elapsed days; current room only from today forward; test that a room move without a sample leaves <code>cci_now</code> unchanged.</td><td>Lots will jump around the board on the first room move after deploy.</td><td><span class="chip eff">M</span></td></tr>
+<tr><td>A2</td><td><b>Degrade, don't erase</b> (F1, CR). Show the last usable date greyed with its sample age; keep bins-due counting it; add <code>build_predictions</code> to the release steps.</td><td>On any day the nightly job or the sampling route slips, the headline number is blank.</td><td><span class="chip eff">S</span></td></tr>
+<tr><td>A3</td><td><b>Hold budget for lots at or past a band</b> (F2, 2.2, 2.3). Days of hold remaining from weeks since crossing, decay trend and storage clock; a ship-by week per lot; crossing date as context.</td><td>The plan says "87 days overdue" for fruit the house is still selling.</td><td><span class="chip eff">M</span></td></tr>
+<tr><td>A4</td><td><b>Storage clock with two walls</b> (F4, 2.1). Degree-weeks above the colour-class band and a cold clock (days below 10 °C, any reading below 5 °C); hide when zero; readiness check that the setpoint sits inside the band for its colour class; °F in the settings help.</td><td>55 °F rooms never trip the current 13 °C clock, and chilling injury is not watched at all.</td><td><span class="chip eff">S–M</span></td></tr>
+<tr><td>A5</td><td><b>Decay ladder from the USDA grade</b> (2.1). Amber at 1 %, red at 3 %, house dump % as a parameter; decay type on the sample (green/blue mold, sour rot, button/Alternaria, brown rot) plus button loss and membranous stain counts.</td><td>Sour rot on treated long-storage lots is the documented Ventura failure mode and the app cannot see it.</td><td><span class="chip eff">M</span></td></tr>
+<tr><td>A6</td><td><b>Fruit-count honesty</b> (F5, 2.3). Legend "colour from 10 photographed, decay from 25 inspected"; model default 25; replace P10/P90 with mean ± SE.</td><td>The screen contradicts itself and the percentiles are the min and max of ten fruit.</td><td><span class="chip eff">S</span></td></tr>
+<tr><td>A7</td><td><b>i18n context processor, cookie flags, clear cookie on logout</b> (CR).</td><td><code>&lt;html lang&gt;</code> and the toggle are wrong on every Spanish page; the test hides it.</td><td><span class="chip eff">S</span></td></tr>
+<tr><td>A8</td><td><b>One decision count</b> (F3) and the <b>market "Not set" fix</b> (CR).</td><td>The GM reads two different numbers for the same Monday task.</td><td><span class="chip eff">S</span></td></tr>
+<tr><td>A9</td><td><b>Capture POST failure recovery</b> (CR). Re-enable Save on <code>pageshow</code>, keep the chosen file where the browser allows, say what to do.</td><td>Plant-floor Wi-Fi will fail a POST in week one.</td><td><span class="chip eff">S</span></td></tr>
+<tr><td>A10</td><td><b>Spanish for the board and lot page</b> (F6), or hide GM-only columns from foremen.</td><td>Foremen open the board first.</td><td><span class="chip eff">M</span></td></tr>
+</table></div>
+
+<h3>B · During the pilot, weeks 3 to 10</h3>
+<div class="tbl ranked"><table>
+<tr><th>#</th><th>Improvement</th><th>Why</th><th>Effort</th></tr>
+<tr><td>B1</td><td><b>Temperature logger import</b> (CSV: logger id, timestamp, °C); consume the trailing-temperature features the model already stores; carry ±1 °C into a forecast interval.</td><td>Room temperature variability dominates forecast error; the model runs on setpoints today.</td><td><span class="chip eff">M–L</span></td></tr>
+<tr><td>B2</td><td><b>Date range and P(band by date)</b>, with the house's cost-loss threshold as a setting; keep the point date for the report.</td><td>Uncertainty forecasts improve decisions and survive misses.</td><td><span class="chip eff">M</span></td></tr>
+<tr><td>B3</td><td><b>Treatment events and market tags</b>: active ingredient, ppm, temperature, method, hours since harvest; export tags per lot; alarms for more than 24 h to treatment, a non-permitted ingredient for a tagged market, sour rot on propiconazole lots, 12 weeks without a sour-rot treatment.</td><td>Treatment history is a stronger covariate than wax alone; export eligibility is a program property.</td><td><span class="chip eff">M</span></td></tr>
+<tr><td>B4</td><td><b>Weight-loss reference bin and firmness spot check</b> for lots past 12 weeks (fields exist).</td><td>Colour is a late indicator; softening tracks water loss at about 1.2 % a week.</td><td><span class="chip eff">S</span></td></tr>
+<tr><td>B5</td><td><b>Bin position and stack depth</b> on the lot, with an "oldest lot is buried" flag on the plan.</td><td>The physical reason FEFO fails in a lemon room.</td><td><span class="chip eff">M</span></td></tr>
+<tr><td>B6</td><td><b>Pack events with pool period</b>, pre-grade vs final-grade delta, and the KPI set: fresh packout %, repack/downgrade %, dump %, estimated weight loss, days in storage by colour class, room fill %.</td><td>Pool accounting is why a hold decision moves grower money; the house sets its own targets.</td><td><span class="chip eff">M</span></td></tr>
+<tr><td>B7</td><td><b>GS1 lot string as the lot key</b>; EPCIS 2.0 export later.</td><td>Joins to PTI case labels and the Famous export.</td><td><span class="chip eff">S</span></td></tr>
+</table></div>
+
+<h3>C · Evaluation and house questions, no code</h3>
+<div class="tbl ranked"><table>
+<tr><th>#</th><th>Action</th><th>When</th></tr>
+<tr><td>C1</td><td><b>Pre-register the pilot evaluation</b> in the calibration protocol: primary endpoint forecast skill (RMSE-days vs naive baseline, leave-one-lot-out, forward-chaining hindcast, calibration with censoring handled); secondary a continuous per-lot outcome with at least 45 lots per arm, interleaved weeks or rooms. Drop any binary dump-rate claim.</td><td>Before go-live</td></tr>
+<tr><td>C2</td><td><b>Measure within-lot CCI SD</b> on three to five 50 to 100-fruit samples to decide whether 25 is enough for the mean and what a tolerance bound looks like.</td><td>Weeks 1 to 2</td></tr>
+<tr><td>C3</td><td><b>House questions</b>: setpoint per colour class per room; storage-wax formulation and the fungicide in it; sour-rot incidence on propiconazole lots last season; treatment-timing records; export program tags per grove; pool definitions and periods; whether the Sunsort pre-grade exports per lot.</td><td>House meeting</td></tr>
+<tr><td>C4</td><td><b>Pitch calibration</b>: cite the 8 to 14 % FEFO range for short-life produce, claim the conservative end on a lot-average basis, lead with protecting fresh share in an oversupplied market.</td><td>Before the pitch</td></tr>
+<tr><td>C5</td><td>CDFA SCBGP 2027 concept proposal still closes <b>21 September 2026, 9 a.m. PT</b>.</td><td>This week</td></tr>
+</table></div>
+
+<h2 id="caveats">4 · Caveats on the research</h2>
+<ul>
+<li>Several primary PDFs were blocked to automated reading (NSW DPI lemon manual, Argentine protocol, PrimusGFS Module 5, CRI Toolkit 6.4, Zespri SLA, Hertog 2014 full text); facts from them come from abstracts, snippets or secondary citations and are marked in the appendix.</li>
+<li>No published lot-level decay curve, rotation rule, inspection interval or shrink benchmark exists for commercial lemon storage anywhere; the alarm thresholds above are assembled from grade standards and single studies and should be house-configurable.</li>
+<li>The USDA lemon standard changed on 13 May 2026; tolerances quoted are from the current text.</li>
+<li>Sample-size and power figures were computed from standard formulas, not taken from a lemon study.</li>
+<li>Repo copies: <code>docs/product-review-and-research-2026-09-10.md</code> (this summary) and <code>docs/research-appendix-2026-09-10.md</code> (full agent reports, code review, every citation).</li>
+</ul>
+</main>
+</div>

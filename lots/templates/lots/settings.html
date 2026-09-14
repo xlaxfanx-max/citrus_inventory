@@ -32,7 +32,14 @@
       {% endif %}{% endfor %}
     </div>
     <div class="card">
-      <h3 style="margin-top:0">Monday report recipients</h3>
+      <h3 style="margin-top:0">Sampling, storage temperature and photo correction</h3>
+      {% for f in form %}{% if f.name in 'sample_fruit_count warm_storage_temp_c warm_weeks_flag temperature_response color_correction_method' %}
+        <div class="field"><label for="{{ f.id_for_label }}">{{ f.label }}</label><br>{{ f }}<div class="help">{{ f.help_text }}</div>{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+      <p class="help muted small">Room setpoints are entered per room in Administration (target temperature, °F). The rot-risk clock and the temperature response both read them from there.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Plants: Monday report recipients and capacity</h3>
       {{ formset.management_form }}
       {% for pf in formset %}
         {{ pf.id }}

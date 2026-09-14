@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timedelta
 from django.contrib.auth.models import Group, User
 from django.core import mail
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -118,10 +118,12 @@ class ModelTests(TestCase):
         self.assertFalse(flag)
 
 
+@override_settings(FOREMAN_DEFAULT_LANGUAGE='en')
 class Base(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.plant = Plant.objects.create(code='SLA1', name='Plant 1', report_recipients='gm@example.com, foreman@example.com')
+        cls.plant = Plant.objects.create(code='SLA1', name='Plant 1')
+        cls.plant.set_recipients(['gm@example.com', 'foreman@example.com'])
         cls.grower = Grower.objects.create(sunkist_grower_no='10417', name='Sespe')
         cls.settings = ModelSettings.get()
 
@@ -167,9 +169,13 @@ class ServiceTests(Base):
         pred = rebuild_for_lot(lot)
         self.assertEqual(pred.confidence, 'low')
         rows = board_rows(plan_lots(self.plant), timezone.localdate(), self.settings)
+        # The stale date degrades rather than vanishing: still shown (greyed)
+        # and still counted in capacity, but never urgent or decision-bearing.
         self.assertFalse(rows[0]['dates_usable'])
-        self.assertIsNone(rows[0]['days_to_pack_by'])
-        self.assertEqual(sum(b['lots'] for b in capacity_projection(rows, self.plant, timezone.localdate())), 0)
+        self.assertTrue(rows[0]['date_stale'])
+        self.assertIsNotNone(rows[0]['days_to_pack_by'])
+        self.assertEqual(rows[0]['urgency'], '')
+        self.assertEqual(sum(b['lots'] for b in capacity_projection(rows, self.plant, timezone.localdate())), 1)
         self.assertEqual(build_report(self.plant)['to_pack'], [])
         rec = publish_plan(self.plant).recommendations.get()
         self.assertFalse(rec.requires_decision)
@@ -181,9 +187,9 @@ class ServiceTests(Base):
         warm = Room.objects.create(plant=self.plant, name='Warm')
         day = timezone.localdate()
         at = lambda hour: timezone.make_aware(datetime.combine(day, time(hour)))
-        LotRoomMove.objects.create(lot=lot, room=cold, moved_at=lot.receive_date)
-        LotRoomMove.objects.create(lot=lot, room=warm, moved_at=day, occurred_at=at(12))
-        LotRoomMove.objects.create(lot=lot, room=cold, moved_at=day, occurred_at=at(18))
+        LotRoomMove.objects.create(lot=lot, room=cold, moved_on=lot.receive_date)
+        LotRoomMove.objects.create(lot=lot, room=warm, moved_on=day, occurred_at=at(12))
+        LotRoomMove.objects.create(lot=lot, room=cold, moved_on=day, occurred_at=at(18))
         for room, hour, temp in [(cold, 10, 50), (cold, 14, 99), (warm, 14, 70), (warm, 20, 99), (cold, 20, 50)]:
             RoomCondition.objects.create(room=room, recorded_at=at(hour), temperature_f=temp, source='test')
         env = environment_features(lot, day)
@@ -253,7 +259,7 @@ class ServiceTests(Base):
         room = Room.objects.create(plant=self.plant, name='Cold 1')
         lot.current_room = room
         lot.save()
-        LotRoomMove.objects.create(lot=lot, room=room, moved_at=lot.receive_date)
+        LotRoomMove.objects.create(lot=lot, room=room, moved_on=lot.receive_date)
 
         def at(day):
             return timezone.make_aware(datetime.combine(day, time(12, 0)))
@@ -302,8 +308,8 @@ class ServiceTests(Base):
         lot = self.make_lot('26-ENV', 20)
         cold = Room.objects.create(plant=self.plant, name='Cold 1')
         warm = Room.objects.create(plant=self.plant, name='Degreen A')
-        LotRoomMove.objects.create(lot=lot, room=cold, moved_at=lot.receive_date)
-        LotRoomMove.objects.create(lot=lot, room=warm, moved_at=lot.receive_date + timedelta(days=10))
+        LotRoomMove.objects.create(lot=lot, room=cold, moved_on=lot.receive_date)
+        LotRoomMove.objects.create(lot=lot, room=warm, moved_on=lot.receive_date + timedelta(days=10))
 
         def at(day, hour):
             return timezone.make_aware(datetime.combine(day, time(hour, 0)))
@@ -426,8 +432,7 @@ class ReportTests(Base):
         self.assertEqual(len(mail.outbox), 1)
 
     def test_no_recipients_not_sent(self):
-        self.plant.report_recipients = ''
-        self.plant.save()
+        self.plant.set_recipients([])
         self.assertEqual(send_report(self.plant), 0)
         self.assertEqual(len(mail.outbox), 0)
 
@@ -481,7 +486,7 @@ class AccuracyViewTests(Base):
     def test_readiness_counts_lots_in_monitored_rooms(self):
         room = Room.objects.create(plant=self.plant, name='Cold 1')
         exposed = self.make_lot('26-EXP', 30, current_room=room)
-        LotRoomMove.objects.create(lot=exposed, room=room, moved_at=exposed.receive_date)
+        LotRoomMove.objects.create(lot=exposed, room=room, moved_on=exposed.receive_date)
         self.make_lot('26-DRY', 30)
         RoomCondition.objects.create(room=room, recorded_at=timezone.now(), temperature_f=55, source='s')
         self.client.force_login(self.gm)
@@ -722,3 +727,163 @@ class PlanTests(Base):
         call_command('publish_plan', plant='sla1', stdout=out)
         self.assertIn('plan v1 published', out.getvalue())
         self.assertEqual(PackPlan.objects.get().source, PackPlan.Source.COMMAND)
+
+
+class TemperatureResponseTests(TestCase):
+    def test_prior_is_scaled_by_room_setpoint_but_fitted_slope_is_not(self):
+        from .model import prior_at_temperature, temperature_rate_factor, PRIOR_REFERENCE_C
+        s = ModelSettings.get()
+        self.assertAlmostEqual(temperature_rate_factor(15.0), 1.0)
+        self.assertLess(temperature_rate_factor(5.0), 0.2)
+        self.assertLess(temperature_rate_factor(25.0), 0.2)
+        self.assertAlmostEqual(prior_at_temperature(0.1, PRIOR_REFERENCE_C), 0.1)
+        base = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=10), receiving_color='DG', points=[], decay_samples=[], settings=s)
+        warm = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=10), receiving_color='DG', points=[], decay_samples=[], settings=s, room_temp_c=15.0)
+        cold = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=10), receiving_color='DG', points=[], decay_samples=[], settings=s, room_temp_c=5.0)
+        self.assertGreater(warm['drift_per_day'], base['drift_per_day'])
+        self.assertLess(cold['drift_per_day'], base['drift_per_day'])
+        self.assertEqual(warm['inputs']['room_temp_c'], 15.0)
+        self.assertEqual(base['inputs']['temperature_factor'], None)
+        fitted = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=30), receiving_color='DG',
+            points=[(10, -9.0), (30, -5.0)], decay_samples=[], settings=s, room_temp_c=5.0)
+        self.assertAlmostEqual(fitted['drift_per_day'], 0.2)
+        s.temperature_response = False
+        off = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=10), receiving_color='DG', points=[], decay_samples=[], settings=s, room_temp_c=15.0)
+        self.assertEqual(off['drift_per_day'], base['drift_per_day'])
+
+
+class QuickDecisionTests(Base):
+    def setUp(self):
+        self.gm = User.objects.create_user('gm2', password='pw')
+        self.gm.groups.add(Group.objects.get_or_create(name='gm')[0])
+        UserProfile.objects.create(user=self.gm, plant=None)
+        today = timezone.localdate()
+        self.lot = Lot.objects.create(lot_no='26-2001', plant=self.plant, grower=self.grower, receive_date=today - timedelta(days=60), bins_received=100)
+        self.lot2 = Lot.objects.create(lot_no='26-2002', plant=self.plant, grower=self.grower, receive_date=today - timedelta(days=60), bins_received=100)
+        for lot in (self.lot, self.lot2):
+            Prediction.objects.create(lot=lot, as_of_date=today, cci_now=3.0, stage=Color.YELLOW, drift_per_day=.2,
+                predicted_yellow_date=today, pack_by_date=today - timedelta(days=2),
+                confidence='high', model_version=MODEL_VERSION,
+                inputs={'points': [[50, 1.0], [58, 3.0]], 'receive_date': lot.receive_date.isoformat()})
+            # a fresh routine sample, otherwise the board asks for a sample before a pack decision
+            Sample.objects.create(lot=lot, foreman_color=Color.YELLOW, foreman_pack_within_weeks=1)
+        self.client.force_login(self.gm)
+
+    def test_publish_records_market_regime_and_copies_it_onto_decisions(self):
+        resp = self.client.post(reverse('forecast:plan_publish', args=[self.plant.code]), {'market_regime': 'oversupplied'})
+        plan = PackPlan.objects.get()
+        self.assertEqual(plan.market_regime, 'oversupplied')
+        rec = plan.recommendations.filter(requires_decision=True).first()
+        self.assertIsNotNone(rec)
+        resp = self.client.post(reverse('forecast:plan_decide', args=[plan.pk, rec.pk]), {f'rec{rec.pk}-status': 'accepted'}, HTTP_HX_REQUEST='true')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('data-decision-for', resp.content.decode())
+        self.assertIn('Accepted', resp.content.decode())
+        self.assertEqual(rec.decisions.get().market_regime, 'oversupplied')
+        self.assertIn('"undecided": 1', resp['X-Plan-Coverage'])
+        # a second publish without a regime inherits the previous one
+        self.client.post(reverse('forecast:plan_publish', args=[self.plant.code]), {})
+        self.assertEqual(PackPlan.objects.order_by('-version').first().market_regime, 'oversupplied')
+
+    def test_in_place_validation_error_returns_the_cell_with_errors(self):
+        self.client.post(reverse('forecast:plan_publish', args=[self.plant.code]), {'market_regime': 'tight'})
+        plan = PackPlan.objects.get()
+        rec = plan.recommendations.filter(requires_decision=True).first()
+        resp = self.client.post(reverse('forecast:plan_decide', args=[plan.pk, rec.pk]), {f'rec{rec.pk}-status': 'deferred'}, HTTP_HX_REQUEST='true')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('errorlist', resp.content.decode())
+        self.assertFalse(rec.decisions.exists())
+
+    def test_accept_all_remaining_records_one_decision_per_recommendation(self):
+        self.client.post(reverse('forecast:plan_publish', args=[self.plant.code]), {})
+        plan = PackPlan.objects.get()
+        actionable = list(plan.recommendations.filter(requires_decision=True))
+        self.assertGreaterEqual(len(actionable), 2)
+        first = actionable[0]
+        PlanDecision.objects.create(recommendation=first, status='deferred', reason='capacity', planned_pack_date=timezone.localdate() + timedelta(days=3), decided_by=self.gm)
+        resp = self.client.post(reverse('forecast:plan_accept_remaining', args=[plan.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(first.decisions.count(), 1)  # untouched
+        for rec in actionable[1:]:
+            self.assertEqual(rec.latest_decision.status, 'accepted')
+            self.assertEqual(rec.latest_decision.decided_by, self.gm)
+        self.assertEqual(coverage(plans_for(self.plant).get(pk=plan.pk))['undecided'], 0)
+
+    def test_market_regime_can_change_until_lock(self):
+        self.client.post(reverse('forecast:plan_publish', args=[self.plant.code]), {})
+        plan = PackPlan.objects.get()
+        self.client.post(reverse('forecast:plan_market', args=[plan.pk]), {'market_regime': 'tight'})
+        plan.refresh_from_db()
+        self.assertEqual(plan.market_regime, 'tight')
+        self.client.post(reverse('forecast:plan_lock', args=[plan.pk]))
+        self.client.post(reverse('forecast:plan_market', args=[plan.pk]), {'market_regime': 'normal'})
+        plan.refresh_from_db()
+        self.assertEqual(plan.market_regime, 'tight')
+
+    def test_readiness_reports_capture_time_and_room_setpoints(self):
+        Sample.objects.create(lot=self.lot, foreman_color='S', foreman_pack_within_weeks=2, capture_seconds=80)
+        Sample.objects.create(lot=self.lot2, foreman_color='S', foreman_pack_within_weeks=2, capture_seconds=100)
+        Room.objects.create(plant=self.plant, name='Cold 9', target_temp_f=50)
+        Room.objects.create(plant=self.plant, name='Cold 10')
+        resp = self.client.get(reverse('forecast:readiness'), {'plant': self.plant.code})
+        self.assertContains(resp, '90 s median · 2 samples in 30 days · target 90 s')
+        self.assertContains(resp, '1 / 2 rooms')
+
+
+class ExposurePriorTests(Base):
+    """CR-1 from the 10 September review: the temperature prior must not be
+    applied retroactively to the elapsed term keyed to the current room."""
+
+    def _settings(self):
+        s = ModelSettings.get()
+        s.temperature_response = True
+        return s
+
+    def test_room_move_without_new_sample_leaves_cci_now_unchanged(self):
+        from .model import _reference_factor, predict
+        s = self._settings()
+        receive = TODAY - timedelta(days=30)
+        common = dict(as_of=TODAY, receive_date=receive, receiving_color='DG', points=[(20, -6.0)], decay_samples=[], settings=s)
+        before = predict(**common, room_temp_c=15.0, exposure=[(0, 31, 15.0)])
+        after = predict(**common, room_temp_c=5.0, exposure=[(0, 30, 15.0), (30, 31, 5.0)])
+        self.assertAlmostEqual(before['cci_now'], after['cci_now'], places=3)
+        self.assertAlmostEqual(before['cci_now'], -6.0 + 10 * s.prior_drift_dg * _reference_factor(15.0), places=3)
+        self.assertLess(after['drift_per_day'], before['drift_per_day'])
+        self.assertEqual(after['inputs']['method'], 'prior_from_one_point')
+        self.assertIn('elapsed prior integrated over recorded room history', after['inputs']['notes'])
+
+    def test_missing_history_runs_elapsed_term_at_reference_rate(self):
+        from .model import predict
+        s = self._settings()
+        r = predict(as_of=TODAY, receive_date=TODAY - timedelta(days=30), receiving_color='DG', points=[(20, -6.0)], decay_samples=[], settings=s, room_temp_c=15.0)
+        self.assertAlmostEqual(r['cci_now'], -6.0 + 10 * s.prior_drift_dg, places=3)
+        self.assertGreater(r['drift_per_day'], s.prior_drift_dg)
+
+    def test_crossing_walks_history_then_extends_at_current_room_rate(self):
+        from .model import predict
+        s = self._settings()
+        common = dict(as_of=TODAY, receive_date=TODAY - timedelta(days=30), receiving_color='DG', points=[(20, -6.0)], decay_samples=[], settings=s)
+        warm = predict(**common, room_temp_c=15.0, exposure=[(0, 31, 15.0)])
+        cold = predict(**common, room_temp_c=8.0, exposure=[(0, 30, 15.0), (30, 31, 8.0)])
+        self.assertIsNotNone(warm['predicted_yellow_date'])
+        self.assertIsNotNone(cold['predicted_yellow_date'])
+        self.assertGreater(cold['predicted_yellow_date'], warm['predicted_yellow_date'])
+        self.assertGreater(warm['predicted_yellow_date'], TODAY)
+
+    def test_rebuild_passes_recorded_room_history(self):
+        from .services import rebuild_for_lot
+        s = self._settings()
+        s.save()
+        warm = Room.objects.create(plant=self.plant, name='Warm', target_temp_f=59)
+        cold = Room.objects.create(plant=self.plant, name='Cold', target_temp_f=41)
+        today = timezone.localdate()
+        lot = self.make_lot('26-EXPO', 30, current_room=cold)
+        LotRoomMove.objects.create(lot=lot, room=warm, moved_on=lot.receive_date)
+        LotRoomMove.objects.create(lot=lot, room=cold, moved_on=today)
+        pred = rebuild_for_lot(lot, as_of=today, settings=s)
+        exposure = pred.inputs['exposure']
+        self.assertEqual(len(exposure), 2)
+        self.assertEqual([round(e[2], 1) for e in exposure], [15.0, 5.0])
+        self.assertAlmostEqual(exposure[0][1], 30, places=3)
+        self.assertIsNotNone(pred.inputs['elapsed_prior_gain'])
+        self.assertEqual(pred.inputs['room_temp_c'], 5.0)

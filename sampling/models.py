@@ -16,6 +16,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
+from django.utils.translation import gettext as _
 import math
 
 from lots.models import Color, Lot
@@ -31,6 +32,8 @@ class BoardCalibration(models.Model):
     measured_at = models.DateTimeField()
     instrument = models.CharField(max_length=200, help_text='Instrument, illuminant and measurement record identifier.')
     reference_rgb = models.JSONField(help_text='All nine patch names mapped to measured D65 sRGB values [R,G,B], each 0–255. Never enter nominal print targets as measurements.')
+    device_model = models.CharField(max_length=80, blank=True, help_text='Phone make and model, e.g. iPhone 15 or Pixel 8a. Camera response differs by device.')
+    white_balance_mode = models.CharField(max_length=40, blank=True, help_text='White-balance setting locked on the phone camera, e.g. Daylight or 5000K. Auto white balance shifts color between shots and must not be used.')
     active = models.BooleanField(default=True)
 
     class Meta:
@@ -64,6 +67,7 @@ class BoardCalibration(models.Model):
     def snapshot(self):
         return {'calibration_id': self.pk, 'plant_id': self.plant_id, 'board_id': self.board_id,
                 'phone_id': self.phone_id, 'light_id': self.light_id,
+                'device_model': self.device_model, 'white_balance_mode': self.white_balance_mode,
                 'measured_at': self.measured_at.astimezone(datetime_timezone.utc).isoformat(), 'instrument': self.instrument,
                 'reference_rgb': self.reference_rgb}
 
@@ -92,10 +96,10 @@ class Sample(models.Model):
         RIND = 'rind', 'Rind breakdown'
         OTHER = 'other', 'Other'
 
-    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='samples')
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name='samples')
     sampled_at = models.DateTimeField(default=timezone.now)
     sampled_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True
     )
     foreman_color = models.CharField(max_length=2, choices=Color.choices)
     foreman_pack_within_weeks = models.PositiveSmallIntegerField(
@@ -140,6 +144,11 @@ class Sample(models.Model):
         blank=True,
     )
     notes = models.TextField(blank=True)
+    capture_seconds = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Seconds from opening the capture screen to saving. The pilot target is a 90-second median.',
+    )
     is_void = models.BooleanField(
         default=False,
         help_text='Voided samples remain in the audit trail but are excluded from forecasts.',
@@ -147,7 +156,7 @@ class Sample(models.Model):
     voided_at = models.DateTimeField(null=True, blank=True)
     voided_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='voided_lemon_samples',
@@ -219,11 +228,26 @@ class Sample(models.Model):
 
     @property
     def foreman_pack_label(self):
-        return 'Today' if self.foreman_pack_within_weeks == 0 else f'Within {self.foreman_pack_within_weeks} wk'
+        if self.foreman_pack_within_weeks == 0:
+            return _('Today')
+        return _('Within %(n)d wk') % {'n': self.foreman_pack_within_weeks}
 
     @property
     def decay_pct(self):
         return 100 * self.decay_count / self.fruit_count if self.fruit_count else None
+
+    @property
+    def defect_summary(self):
+        """Non-zero defect counts only, e.g. 'decay 2 · soft 1 of 25'; 'none' when clean."""
+        parts = [
+            (label, count) for label, count in (
+                ('decay', self.decay_count), ('soft', self.soft_count), ('shrivel', self.shrivel_count),
+                ('chilling', self.chilling_injury_count), ('rind', self.rind_breakdown_count),
+            ) if count
+        ]
+        if not parts:
+            return f'none of {self.fruit_count}'
+        return ' · '.join(f'{label} {count}' for label, count in parts) + f' of {self.fruit_count}'
 
     @property
     def best_photo(self):
@@ -297,6 +321,7 @@ class SamplePhoto(models.Model):
     image = models.FileField(upload_to=photo_upload_path)
     calibration_snapshot = models.JSONField(default=dict, blank=True, help_text='Station and measured references copied at capture; retained when rescoring.')
     thumb = models.FileField(upload_to='thumbs/%Y/%m/', blank=True, help_text='Small JPEG made by the scoring job for the board.')
+    device_info = models.CharField(max_length=200, blank=True, help_text='Browser user agent at upload, so photos can be grouped by phone when reviewing calibration.')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
     card_detected = models.BooleanField(default=False)
@@ -369,9 +394,50 @@ class SamplePhoto(models.Model):
         self.quality_ok = bool(correction.get('applied'))
         self.quality_warnings = warnings
         self.save()
+        self.sync_fruit_measurements()
 
     def mark_retry(self, error):
         self.status = self.Status.PENDING
         self.error = error[:2000]
         self.processing_started_at = None
         self.save(update_fields=['status', 'error', 'processing_started_at'])
+
+    def sync_fruit_measurements(self):
+        """Mirror the per-fruit arrays into FruitMeasurement rows (one per
+        fruit) so per-fruit color can be queried, grouped and joined in SQL.
+        The arrays stay the pipeline's raw record; this table is derived from
+        them and rebuilt whenever the photo is scored."""
+        self.fruit.all().delete()
+        labs = list(self.per_fruit_lab or [])
+        ccis = list(self.per_fruit_cci or [])
+        rows = []
+        for index in range(max(len(labs), len(ccis))):
+            lab = labs[index] if index < len(labs) and isinstance(labs[index], (list, tuple)) and len(labs[index]) == 3 else (None, None, None)
+            cci = ccis[index] if index < len(ccis) else None
+            rows.append(FruitMeasurement(photo=self, index=index, lab_l=lab[0], lab_a=lab[1], lab_b=lab[2], cci=cci))
+        FruitMeasurement.objects.bulk_create(rows)
+        return len(rows)
+
+
+class FruitMeasurement(models.Model):
+    """One fruit in one scored photo: its CIELAB color and citrus color index.
+
+    A multi-valued attribute of SamplePhoto held in its own table (first
+    normal form) rather than only in the JSON arrays, so a 25-fruit sample
+    can be summarized with SQL aggregates and percentiles.
+    """
+
+    photo = models.ForeignKey(SamplePhoto, on_delete=models.CASCADE, related_name='fruit')
+    index = models.PositiveSmallIntegerField(help_text='Position in the photo, 0-based, as detected by the pipeline.')
+    lab_l = models.FloatField(null=True, blank=True)
+    lab_a = models.FloatField(null=True, blank=True)
+    lab_b = models.FloatField(null=True, blank=True)
+    cci = models.FloatField(null=True, blank=True, help_text='Null when b* is too close to zero for a usable index.')
+
+    class Meta:
+        ordering = ['photo', 'index']
+        constraints = [models.UniqueConstraint(fields=['photo', 'index'], name='one_measurement_per_fruit')]
+
+    def __str__(self):
+        return f'{self.photo_id} fruit {self.index}: {self.cci}'
+

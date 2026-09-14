@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load lot_extras %}
 {% block title %}Lot {{ lot.lot_no }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{% url 'lots:board' %}?plant={{ lot.plant.code }}">← {{ lot.plant.code }} packing plan</a></p>
@@ -6,9 +7,13 @@
   <div><p class="eyebrow">{{ lot.plant.code }} · {{ lot.get_status_display }}</p><h1 class="screen-title">Lot {{ lot.lot_no }}</h1></div>
   {% if lot.status == 'packed' and is_foreman %}<a class="btn" href="{% url 'sampling:capture' lot.pk %}">Assess shelf-life holdout</a>{% endif %}{% if lot.status == 'in_storage' and is_foreman %}<a class="btn" href="{% url 'sampling:capture' lot.pk %}">Sample this lot</a>{% endif %}
 </div>
-<p class="muted">{{ lot.grower.name }}{% if lot.block %} · block {{ lot.block }}{% endif %} · {{ lot.variety }} · received {{ lot.receive_date }} as <span class="chip {{ lot.receiving_color }}">{{ lot.get_receiving_color_display }}</span>
-  {% if lot.harvest_date %} · harvested {{ lot.harvest_date }}{% endif %}{% if lot.intake_cci_mean is not None %} · intake CCI {{ lot.intake_cci_mean|floatformat:2 }}{% if lot.intake_cci_std is not None %} ± {{ lot.intake_cci_std|floatformat:2 }}{% endif %}{% endif %}
-  {% if lot.bins_received %} · {{ lot.bins_received }} bins{% endif %}{% if lot.current_room %} · {{ lot.current_room }}{% endif %}{% if lot.packed_date %} · packed {{ lot.packed_date }}{% endif %}</p>
+<dl class="kv" aria-label="Lot details">
+  <dt>Grower</dt><dd>{{ lot.grower.name }}{% if lot.block %} · block {{ lot.block }}{% endif %}</dd>
+  <dt>Variety</dt><dd>{{ lot.variety }}</dd>
+  <dt>Received</dt><dd>{{ lot.receive_date|date:'M j, Y' }} as <span class="chip {{ lot.receiving_color }}">{{ lot.get_receiving_color_display }}</span>{% if lot.harvest_date %} · harvested {{ lot.harvest_date|date:'M j' }}{% endif %}{% if lot.intake_cci_mean is not None %} · intake CCI {{ lot.intake_cci_mean|floatformat:2 }}{% if lot.intake_cci_std is not None %} ± {{ lot.intake_cci_std|floatformat:2 }}{% endif %}{% endif %}</dd>
+  <dt>Quantity</dt><dd>{% if lot.bins_received %}{{ lot.bins_received }} bins received{% else %}Not recorded{% endif %}{% if lot.is_partially_packed %} · partially packed{% endif %}</dd>
+  <dt>Room</dt><dd>{{ lot.current_room|default:'No room' }}{% if lot.current_room and lot.current_room.setpoint_c is not None %} · setpoint {{ lot.current_room.setpoint_c }} °C{% elif lot.current_room %} · <span class="flag amber">no setpoint recorded</span>{% endif %}{% if lot.packed_date %} · packed {{ lot.packed_date|date:'M j, Y' }}{% endif %}</dd>
+</dl>
 
 {% if plan_row %}<div class="card status-row" style="margin:.9rem 0;border-left:5px solid {% if plan_row.priority_tone == 'red' %}var(--alert-ink){% elif plan_row.priority_tone == 'amber' %}var(--warn-ink){% else %}var(--accent){% endif %}">
   <div><span class="eyebrow">Recommended action</span><strong style="font-size:1.15rem">{{ plan_row.priority }}</strong><br><span class="muted small">{% if plan_row.dates_usable and plan_row.pred.pack_by_date %}Pack-by {{ plan_row.pred.pack_by_date|date:'M j' }} · {{ plan_row.pred.support_label }}{% elif plan_row.sample_overdue %}A fresh sample is needed before the next packing decision.{% else %}Continue monitoring this lot.{% endif %}</span></div>
@@ -16,19 +21,18 @@
 </div>{% endif %}
 
 <div class="tiles">
-  <div class="tile"><div class="num">{{ lot.weeks_in_storage }}</div><div class="label">Weeks in storage</div></div>
-  <div class="tile"><div class="num">{% if lot.bins_remaining is not None %}{{ lot.bins_remaining|floatformat:1 }}{% else %}—{% endif %}</div><div class="label">Bins remaining{% if lot.is_partially_packed %} · partially packed{% endif %}</div></div>
-  <div class="tile"><div class="num">{% if stage %}<span class="chip {{ stage }}">{{ latest.get_stage_display }}</span>{% else %}—{% endif %}</div><div class="label">Model stage</div></div>
-  <div class="tile"><div class="num">{% if latest %}{{ latest.cci_now|floatformat:1 }}{% else %}—{% endif %}</div><div class="label">CCI now {% if latest %}({{ latest.support_label }}){% endif %}</div></div>
-  <div class="tile"><div class="num">{% if latest %}{{ latest.drift_per_day|floatformat:3 }}{% else %}—{% endif %}</div><div class="label">CCI drift per day</div></div>
-  <div class="tile {% if latest and latest.pack_by_date and latest.pack_by_date|timeuntil:today == '0 minutes' %}red{% endif %}"><div class="num">{% if latest and latest.pack_by_date %}{{ latest.pack_by_date|date:'M j' }}{% else %}—{% endif %}</div><div class="label">Indicative model date · review evidence</div></div>
+  <div class="tile {% if overdue_days %}red{% elif days_to_pack_by is not None and days_to_pack_by <= 7 %}amber{% endif %}"><div class="num">{% if latest and latest.pack_by_date %}{{ latest.pack_by_date|date:'M j' }}{% else %}—{% endif %}</div><div class="label">Indicative pack date{% if overdue_days %} · <strong>{{ overdue_days }} day{{ overdue_days|pluralize }} overdue</strong>{% elif days_to_pack_by is not None %} · {{ days_to_pack_by }} day{{ days_to_pack_by|pluralize }} remaining{% elif latest and latest.pack_by_date %} · review evidence{% endif %}</div></div>
+  <div class="tile"><div class="num">{% if lot.bins_remaining is not None %}{{ lot.bins_remaining|floatformat:0 }}{% else %}—{% endif %}</div><div class="label">Bins remaining{% if lot.is_partially_packed %} · partially packed{% endif %}</div></div>
   <div class="tile"><div class="num">{% if latest and latest.decay_flag %}<span class="flag red">{{ latest.decay_pct|floatformat:1 }}%</span>{% elif latest %}{{ latest.decay_pct|floatformat:1 }}%{% else %}—{% endif %}</div><div class="label">Decay observed in recent samples</div></div>
+  <div class="tile"><div class="num">{% if stage %}<span class="chip {{ stage }}">{{ latest.get_stage_display }}</span>{% else %}—{% endif %}</div><div class="label">Model stage{% if latest %} · {{ latest.support_label|lower }}{% endif %}</div></div>
+  <div class="tile"><div class="num">{{ lot.weeks_in_storage }}</div><div class="label">Weeks in storage</div></div>
+  <div class="tile {% if warm.flag %}amber{% endif %}"><div class="num">{% if warm.has_history %}{{ warm.weeks }}{% else %}—{% endif %}</div><div class="label">Weeks at or above {{ warm.threshold_c|floatformat:0 }} °C{% if warm.flag %} · rot-risk clock flagged at {{ warm.flag_weeks }}{% elif not warm.has_history %} · no room history{% elif warm.unknown_days %} · {{ warm.unknown_days|floatformat:0 }} days in rooms without a setpoint{% endif %}</div></div>
 </div>
 
 <nav class="section-links" aria-label="Lot details sections"><a href="#color-trajectory">Color history</a><a href="#storage-exposure">Storage</a><a href="#photos">Photos</a><a href="#samples">Samples</a><a href="#plan-decisions">Decisions</a></nav>
 <h2 id="color-trajectory">Color trajectory</h2><p class="muted small">The line estimates peel-color change. It does not estimate a verified expiry or remaining marketable life. Trend support describes the available observations and fit, not a probability of correctness.</p>{% if plan_row %}{% for note in plan_row.evidence_notes %}<p class="flag amber">{{ note }}</p>{% endfor %}{% endif %}
 <div class="card">{{ chart_svg }}
-  {% if latest %}<details style="margin-top:.5rem"><summary class="muted small">Technical model details</summary><p class="muted small">Model {{ latest.model_version }} as of {{ latest.as_of_date }} · method {{ latest.inputs.method }}{% if latest.inputs.fit %} · slope {{ latest.inputs.fit.slope }} · R² {{ latest.inputs.fit.r2 }} · n {{ latest.inputs.fit.n }}{% endif %}{% for n in latest.inputs.notes %} · {{ n }}{% endfor %}</p></details>{% endif %}
+  {% if latest %}<details style="margin-top:.5rem"><summary class="muted small">Technical model details</summary><p class="muted small">CCI now {{ latest.cci_now|floatformat:1 }} · drift {{ latest.drift_per_day|floatformat:3 }} per day · model {{ latest.model_version }} as of {{ latest.as_of_date }} · method {{ latest.inputs.method }}{% if latest.inputs.fit %} · slope {{ latest.inputs.fit.slope }} · R² {{ latest.inputs.fit.r2 }} · n {{ latest.inputs.fit.n }}{% endif %}{% for n in latest.inputs.notes %} · {{ n }}{% endfor %}</p></details>{% endif %}
 </div>
 
 <div class="grid2">
@@ -39,8 +43,8 @@
       <div class="tile"><div class="num">{% if environment.relative_humidity_pct %}{{ environment.relative_humidity_pct.mean|floatformat:1 }}%{% else %}—{% endif %}</div><div class="label">Observed mean RH</div></div>
       <div class="tile"><div class="num">{{ environment.day_coverage_pct }}%</div><div class="label">Days represented · {{ environment.reading_count }} readings</div></div>
     </div>
-    <div class="table-wrap"><table><thead><tr><th>Room</th><th>From</th><th>End</th><th>Days</th><th>Readings</th></tr></thead><tbody>
-      {% for interval in environment.intervals %}<tr><td>{{ interval.room }}</td><td>{{ interval.start }}</td><td>{{ interval.end_exclusive }} exclusive</td><td>{{ interval.days }}</td><td>{{ interval.reading_count }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">No auditable room exposure yet.</td></tr>{% endfor %}
+    <div class="table-wrap"><table><thead><tr><th>Room</th><th>From</th><th>Through</th><th>Days</th><th>Setpoint</th><th>Readings</th></tr></thead><tbody>
+      {% for interval in environment.intervals %}<tr><td>{{ interval.room }}</td><td>{{ interval.start_day|iso_date|date:'M j, Y' }}</td><td>{{ interval.last_day|iso_date|date:'M j, Y' }}</td><td>{{ interval.days|floatformat:0 }}</td><td>{% if interval.setpoint_c is not None %}{{ interval.setpoint_c }} °C{% else %}<span class="muted">not set</span>{% endif %}</td><td>{{ interval.reading_count }}</td></tr>{% empty %}<tr><td colspan="6" class="muted">No auditable room exposure yet.</td></tr>{% endfor %}
     </tbody></table></div>
   </div>
   <div>
@@ -69,13 +73,13 @@
 
 <h2 id="samples">Samples</h2>
 <div class="table-wrap"><table>
-  <thead><tr><th>Date</th><th>By</th><th>Selection</th><th>Foreman color</th><th>Pack within</th><th>Defects / 10</th><th>CCI distribution</th><th>Holdout</th><th>Notes</th></tr></thead>
+  <thead><tr><th>Date</th><th>By</th><th>Selection</th><th>Foreman color</th><th>Pack within</th><th>Defects</th><th>CCI distribution</th><th>Holdout</th><th>Notes</th></tr></thead>
   <tbody>
   {% for s in samples %}
     <tr><td>{{ s.sampled_on }}</td><td>{{ s.sampled_by|default:'—' }}</td><td>{{ s.get_selection_method_display }} · {{ s.sampled_bins_count }} bin{{ s.sampled_bins_count|pluralize }}</td>
       <td><span class="chip {{ s.foreman_color }}">{{ s.get_foreman_color_display }}</span></td>
       <td>{{ s.foreman_pack_label }} → {{ s.foreman_pack_by_date }}</td>
-      <td>D {{ s.decay_count }} · soft {{ s.soft_count }} · shrivel {{ s.shrivel_count }} · chill {{ s.chilling_injury_count }} · rind {{ s.rind_breakdown_count }}{% if s.firmness_score %}<br>firmness {{ s.firmness_score }}/5{% endif %}</td>
+      <td>{{ s.defect_summary }}{% if s.firmness_score %}<br>firmness {{ s.firmness_score }}/5{% endif %}{% if s.capture_seconds %}<br><span class="muted small">{{ s.capture_seconds }} s to capture</span>{% endif %}</td>
       <td>{% if s.cci_distribution %}P10 {{ s.cci_distribution.p10|floatformat:2 }} · median {{ s.cci_distribution.median|floatformat:2 }} · P90 {{ s.cci_distribution.p90|floatformat:2 }}{% elif s.mean_cci is not None %}mean {{ s.mean_cci|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
       <td>{% if s.purpose == 'holdout' %}<span class="flag {% if s.marketability == 'fail' %}red{% else %}ok{% endif %}">{{ s.get_marketability_display }}</span>{% if s.failure_reason %}<br>{{ s.get_failure_reason_display }}{% endif %}{% else %}—{% endif %}</td>
       <td style="white-space:normal">{{ s.notes }}</td></tr>
@@ -84,7 +88,7 @@
 
 <h2 id="plan-decisions">Plan decisions</h2>
 <div class="table-wrap"><table>
-  <thead><tr><th>Plan</th><th>Action</th><th>Pack by then</th><th>Decision</th><th>Reason</th><th>Planned pack</th><th>By</th><th>Notes</th></tr></thead>
+  <thead><tr><th>Plan</th><th>Action</th><th>Pack by then</th><th>Decision</th><th>Reason</th><th>Planned pack</th><th>Market</th><th>By</th><th>Notes</th></tr></thead>
   <tbody>
   {% for rec in plan_history %}{% with d=rec.latest_decision %}
     <tr><td><a href="{{ rec.plan.get_absolute_url }}">v{{ rec.plan.version }}</a> <span class="muted small">{{ rec.plan.plan_date }}</span></td>
@@ -93,9 +97,10 @@
       <td>{% if d %}<span class="flag {% if d.status == 'accepted' %}ok{% elif d.status == 'deferred' %}amber{% else %}red{% endif %}">{{ d.get_status_display }}</span>{% if d.after_lock %} <span class="flag grey">after lock</span>{% endif %}{% elif rec.requires_decision %}<span class="flag amber">none</span>{% else %}<span class="muted">not required</span>{% endif %}</td>
       <td>{% if d and d.reason %}{{ d.get_reason_display }}{% else %}—{% endif %}</td>
       <td>{% if d and d.planned_pack_date %}{{ d.planned_pack_date }}{% else %}—{% endif %}</td>
+      <td>{% if d and d.market_regime %}{{ d.get_market_regime_display }}{% elif rec.plan.market_regime %}{{ rec.plan.get_market_regime_display }}{% else %}—{% endif %}</td>
       <td>{% if d %}{{ d.decided_by|default:'—' }} <span class="muted small">{{ d.decided_at|date:'M j H:i' }}</span>{% else %}—{% endif %}</td>
       <td style="white-space:normal">{% if d %}{{ d.notes }}{% endif %}</td></tr>
-  {% endwith %}{% empty %}<tr><td colspan="8" class="muted">This lot has not appeared in a published plan yet.</td></tr>{% endfor %}
+  {% endwith %}{% empty %}<tr><td colspan="9" class="muted">This lot has not appeared in a published plan yet.</td></tr>{% endfor %}
   </tbody></table></div>
 
 <h2>Prediction history</h2>
@@ -114,16 +119,28 @@
   <div>
     <h2>Room moves</h2>
     <div class="table-wrap"><table><tbody>
-      {% for m in lot.room_moves.all %}<tr><td>{% if m.occurred_at %}{{ m.occurred_at|date:'Y-m-d H:i T' }}{% else %}{{ m.moved_at }} <span class="muted small">time unknown</span>{% endif %}</td><td>{{ m.room }}</td></tr>{% empty %}<tr><td class="muted">None recorded.</td></tr>{% endfor %}
+      {% for m in lot.room_moves.all %}<tr><td>{% if m.occurred_at %}{{ m.occurred_at|date:'Y-m-d H:i T' }}{% else %}{{ m.moved_on }} <span class="muted small">time unknown</span>{% endif %}</td><td>{{ m.room }}</td></tr>{% empty %}<tr><td class="muted">None recorded.</td></tr>{% endfor %}
     </tbody></table></div>
   </div>
   <div>
-    <h2>Packout</h2>
+    <h2 id="packout">Packout</h2>
+    {% if packout_forms %}<p class="muted small">Record what the line actually saw. These labels are the direct outcome the validation page needs; a packing date alone is not one.</p>{% endif %}
     <div class="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Bins</th><th>Run</th><th>Color</th><th>Quality</th><th>Spec</th><th>Fancy</th><th>Choice</th><th>Std</th><th>Products</th><th>Total</th><th>Fresh %</th><th>Downgrade reason</th></tr></thead>
+      <thead><tr><th>Date</th><th>Bins</th><th>Run</th><th>Cartons fresh / products</th><th>Fresh %</th><th>Observed quality</th><th>Spec</th><th>Downgrade reason</th></tr></thead>
       <tbody>{% for p in lot.packouts.all %}
-        <tr><td>{{ p.packed_date }}</td><td>{{ p.bins_packed|default_if_none:'—' }}</td><td>{% if p.is_final %}final{% else %}partial{% endif %}</td><td>{% if p.packout_color %}<span class="chip {{ p.packout_color }}">{{ p.packout_color }}</span>{% else %}—{% endif %}</td><td>decay {{ p.decay_pct|default_if_none:'—' }}{% if p.decay_pct is not None %}%{% endif %} · soft {{ p.soft_pct|default_if_none:'—' }}{% if p.soft_pct is not None %}%{% endif %} · shrivel {{ p.shrivel_pct|default_if_none:'—' }}{% if p.shrivel_pct is not None %}%{% endif %} · chill {{ p.chilling_injury_pct|default_if_none:'—' }}{% if p.chilling_injury_pct is not None %}%{% endif %}</td><td>{% if p.meets_spec is not None %}{% if p.meets_spec %}<span class="flag ok">pass</span>{% else %}<span class="flag red">fail</span>{% endif %}{% else %}—{% endif %}</td><td>{{ p.cartons_fancy }}</td><td>{{ p.cartons_choice }}</td><td>{{ p.cartons_standard }}</td><td>{{ p.cartons_products }}</td><td>{{ p.cartons_total }}</td><td>{{ p.fresh_pct|default_if_none:'—' }}</td><td>{{ p.downgrade_reason|default:'—' }}</td></tr>
-      {% empty %}<tr><td colspan="13" class="muted">Not packed yet.</td></tr>{% endfor %}</tbody></table></div>
+        <tr><td>{{ p.packed_date|date:'M j, Y' }}</td><td>{% if p.bins_packed is not None %}{{ p.bins_packed|floatformat:0 }}{% else %}—{% endif %}</td><td>{% if p.is_final %}final{% else %}partial{% endif %}</td>
+          <td>{{ p.cartons_fresh }} / {{ p.cartons_products }} <span class="muted small">· fancy {{ p.cartons_fancy }} · choice {{ p.cartons_choice }} · std {{ p.cartons_standard }}</span></td>
+          <td>{{ p.fresh_pct|default_if_none:'—' }}</td>
+          <td>{% if p.packout_color %}<span class="chip {{ p.packout_color }}">{{ p.get_packout_color_display }}</span>{% endif %}{% if p.decay_pct is not None %} decay {{ p.decay_pct }}%{% endif %}{% if p.soft_pct is not None %} · soft {{ p.soft_pct }}%{% endif %}{% if p.shrivel_pct is not None %} · shrivel {{ p.shrivel_pct }}%{% endif %}{% if p.chilling_injury_pct is not None %} · chill {{ p.chilling_injury_pct }}%{% endif %}{% if not p.packout_color and p.decay_pct is None and p.soft_pct is None and p.shrivel_pct is None and p.chilling_injury_pct is None %}<span class="flag amber">not labeled</span>{% endif %}</td>
+          <td>{% if p.meets_spec is not None %}{% if p.meets_spec %}<span class="flag ok">pass</span>{% else %}<span class="flag red">fail</span>{% endif %}{% else %}—{% endif %}</td><td>{{ p.downgrade_reason|default:'—' }}</td></tr>
+        {% with form=packout_forms|get_item:p.pk %}{% if form %}
+        <tr><td colspan="8" style="white-space:normal"><details {% if form.errors %}open{% endif %}><summary class="small" style="color:var(--accent);font-weight:600;cursor:pointer">{% if p.packout_color or p.decay_pct is not None or p.meets_spec is not None %}Edit quality labels{% else %}Record quality labels{% endif %}</summary>
+          <form method="post" action="{% url 'lots:packout_quality' lot.pk p.pk %}" class="decision-form" style="margin-top:.5rem">{% csrf_token %}
+            {% for f in form %}<div{% if f.name == 'downgrade_reason' %} class="wide"{% endif %}><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+            <div><button class="btn small-btn" type="submit">Save labels</button></div>
+          </form></details></td></tr>
+        {% endif %}{% endwith %}
+      {% empty %}<tr><td colspan="8" class="muted">Not packed yet.</td></tr>{% endfor %}</tbody></table></div>
   </div>
 </div>
 {% if lot.notes %}<h2>Notes</h2><div class="card">{{ lot.notes|linebreaks }}</div>{% endif %}

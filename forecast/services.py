@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from .model import predict
 from .models import Prediction
-from .features import features_for_lot
+from .features import _aware_start, features_for_lot, room_exposure_intervals, warm_exposure
 
 
 def lot_points_with_sources(lot, up_to=None):
@@ -72,6 +72,11 @@ def rebuild_for_lot(lot, as_of=None, settings=None):
     as_of = as_of or timezone.localdate()
     settings = settings or ModelSettings.get()
     points, point_sources = lot_points_with_sources(lot, up_to=as_of)
+    day_zero = _aware_start(lot.receive_date)
+    exposure = [
+        ((start - day_zero).total_seconds() / 86400, (end - day_zero).total_seconds() / 86400, room.setpoint_c)
+        for room, start, end in room_exposure_intervals(lot, as_of)
+    ]
     result = predict(
         as_of=as_of,
         receive_date=lot.receive_date,
@@ -79,9 +84,12 @@ def rebuild_for_lot(lot, as_of=None, settings=None):
         points=points,
         decay_samples=lot_decay_samples(lot, up_to=as_of),
         settings=settings,
+        room_temp_c=lot.current_room.setpoint_c if lot.current_room else None,
+        exposure=exposure,
     )
     result['inputs']['point_sources'] = point_sources
     result['inputs']['features'] = features_for_lot(lot, as_of)
+    result['inputs']['warm_storage'] = warm_exposure(lot, as_of, settings)
     pred, _ = Prediction.objects.update_or_create(lot=lot, as_of_date=as_of, defaults=result)
     return pred
 

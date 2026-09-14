@@ -73,7 +73,7 @@ p { margin: 8px 0; }
 .table-wrap { overflow-x: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 2px; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 10px 12px; white-space: nowrap; vertical-align: middle; }
-th { font-size: 12px; font-weight: 600; color: #495249; background: #f1f3ef; border-bottom: 1px solid #c8d0c5; position: sticky; top: 0; }
+th { font-size: 12px; font-weight: 600; color: #495249; background: #f1f3ef; border-bottom: 1px solid #c8d0c5; }
 tbody tr { border-bottom: 1px solid #e1e5de; }
 tbody tr:last-child { border-bottom: 0; }
 tbody tr:nth-child(even) { background: #fafbf9; }
@@ -281,4 +281,46 @@ footer { padding: 16px 32px; border-top: 1px solid var(--line); font-size: 11px;
   .app-header, .skip-link, .heading-actions, .filter-bar, footer { display: none; }
   main { padding: 0; } body { font-size: 11px; }
   .table-wrap { overflow: visible; } .inventory-table { min-width: 0; }
+}
+
+/* --- Plan decisions, market context, publish controls (Sep 2026) --- */
+.publish-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.publish-form select { min-height: 36px; }
+.market-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0; margin: 0 0 16px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.market-form { display: inline-flex; gap: 8px; align-items: center; }
+.plan-table td { white-space: normal; vertical-align: top; }
+.decision-cell { min-width: 250px; }
+.decision-box { display: grid; gap: 8px; }
+.decision-current { line-height: 1.4; }
+.quick-accept { margin: 0; }
+.decision-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 12px; align-items: end; margin-top: 8px; }
+.decision-form label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.decision-form select, .decision-form input, .decision-form textarea { width: 100%; }
+.decision-form .wide { grid-column: 1 / -1; }
+details.decide > summary { cursor: pointer; font-weight: 600; color: var(--accent); font-size: 13px; padding: 4px 0; }
+.history { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
+.card-decision { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft, var(--line)); }
+.js [data-hide-with-js] { display: none !important; }
+.summary-tiles .tile[aria-current="page"] { background: var(--soft); box-shadow: inset 0 -3px 0 var(--accent); }
+.warm-clock { display: inline-block; font-size: 12px; color: var(--muted); }
+.warm-clock.flagged { color: var(--warn-ink); font-weight: 600; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; margin: 8px 0 0; }
+.kv dt { color: var(--muted); margin: 0; }
+.kv dd { margin: 0; }
+.stepper { display: inline-flex; align-items: stretch; border: 1px solid #b8c1b5; border-radius: 3px; overflow: hidden; }
+.stepper button { min-width: 52px; min-height: 52px; border: 0; background: var(--soft); color: var(--ink); font-size: 24px; font-weight: 600; cursor: pointer; }
+.stepper input { width: 90px; min-height: 52px; border: 0; border-inline: 1px solid #b8c1b5; border-radius: 0; text-align: center; font-size: 22px; font-weight: 700; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.step-error { outline: 2px solid var(--alert-ink); outline-offset: 6px; border-radius: 3px; margin-bottom: 18px !important; }
+.step-error-text { color: var(--alert-ink); font-size: 13px; font-weight: 600; margin: 6px 0 0; }
+.tolerance-note { border-left: 4px solid var(--warn-ink); background: var(--warn-bg); color: var(--warn-ink); padding: 10px 12px; margin: 8px 0; font-size: 14px; }
+.lang-switch { display: inline-flex; gap: 0; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.lang-switch button { border: 0; background: none; padding: 6px 10px; min-height: 36px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.lang-switch button[aria-pressed="true"] { background: var(--soft); color: var(--ink); font-weight: 600; }
+@media (max-width: 760px) {
+  .market-row { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .publish-form { width: 100%; }
+  .publish-form select, .publish-form .btn { flex: 1; }
+  .decision-form { grid-template-columns: 1fr; }
+  .lang-switch button { min-height: 44px; padding: 8px 14px; font-size: 14px; }
 }

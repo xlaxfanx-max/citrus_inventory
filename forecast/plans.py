@@ -16,7 +16,20 @@ from lots.models import ModelSettings
 from lots.planning import board_rows, plan_lots
 
 from .model import MODEL_VERSION
-from .models import PackPlan, PlanDecision, PlanRecommendation
+from .models import MarketRegime, PackPlan, PlanDecision, PlanRecommendation
+
+
+def accept_remaining(plan, user):
+    """Record an 'accepted' decision on every actionable recommendation that
+    has none yet. One PlanDecision row each, so the audit trail is the same
+    as clicking Accept on every line. Returns the number recorded."""
+    recorded = 0
+    with transaction.atomic():
+        for rec in plan.recommendations.all():
+            if rec.requires_decision and rec.latest_decision is None:
+                PlanDecision.objects.create(recommendation=rec, status=PlanDecision.Status.ACCEPTED, decided_by=user)
+                recorded += 1
+    return recorded
 
 
 def settings_snapshot(settings):
@@ -27,13 +40,19 @@ def settings_snapshot(settings):
     }
 
 
-def publish_plan(plant, today=None, user=None, source=PackPlan.Source.BOARD, settings=None):
-    """Snapshot the ranked plan for `plant` as the next version. Returns the PackPlan."""
+def publish_plan(plant, today=None, user=None, source=PackPlan.Source.BOARD, settings=None, market_regime=''):
+    """Snapshot the ranked plan for `plant` as the next version. Returns the PackPlan.
+
+    market_regime is the GM's call on the week (tight / normal / oversupplied);
+    an automated publish that does not know it inherits the previous plan's."""
     today = today or timezone.localdate()
     settings = settings or ModelSettings.get()
     rows = board_rows(plan_lots(plant, today), today, settings)
     with transaction.atomic():
-        current = PackPlan.objects.filter(plant=plant).aggregate(v=Max('version'))['v'] or 0
+        previous = PackPlan.objects.filter(plant=plant).order_by('-version').first()
+        current = previous.version if previous else 0
+        if market_regime not in {m.value for m in MarketRegime}:
+            market_regime = previous.market_regime if previous else ''
         plan = PackPlan.objects.create(
             plant=plant,
             plan_date=today,
@@ -42,6 +61,7 @@ def publish_plan(plant, today=None, user=None, source=PackPlan.Source.BOARD, set
             published_by=user,
             model_version=MODEL_VERSION,
             settings_snapshot=settings_snapshot(settings),
+            market_regime=market_regime,
         )
         recs = []
         for rank, row in enumerate(rows, start=1):

@@ -59,6 +59,8 @@ python manage.py createsuperuser
 python manage.py send_monday_report --dry-run
 ```
 
+Create least-privilege database roles by running `scripts/db_roles.sql` as a superuser (replace the passwords first). Point the web and job processes at `citrus_app`, which cannot DELETE lots, samples, plans or decisions, and run migrations as `citrus_owner`. Give analysts `citrus_analyst`, which is read-only. Do not leave the application connected as the `postgres` superuser.
+
 Then:
 
 1. Confirm the three plant codes and replace placeholder plant names/cities in Admin.

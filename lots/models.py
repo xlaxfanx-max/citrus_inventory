@@ -1,8 +1,16 @@
 """Core inventory: plants, rooms, growers, lots, room moves, packouts,
 import batches, user-to-plant assignment and the model settings table.
 
-Data model follows docs/v1-build-spec.md. Lots are never deleted; a lot
-leaves the board by changing status to packed or dumped.
+Data model follows docs/v1-build-spec.md and the ERD in docs/erd.md. Lots are
+never deleted; a lot leaves the board by changing status to packed or dumped.
+
+Delete rules (referential integrity): a foreign key to an independent entity
+(Plant, Grower, Room, Lot, User) is PROTECT, so history is never destroyed by
+deleting its subject; users are deactivated, not deleted. CASCADE is reserved
+for weak entities that mean nothing without their parent (Room -> Plant,
+RoomCondition -> Room, UserProfile -> User, PlantReportRecipient -> Plant).
+SET_NULL is used only where the reference is genuinely optional provenance
+(source_batch, current_room).
 """
 
 from decimal import Decimal
@@ -10,19 +18,23 @@ from datetime import datetime, time
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator, validate_email
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import Case, Count, F, Q, Sum, Value, When
+from django.db.models.functions import Cast, Round
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+
+from .audit import current_source, current_user
 
 
 class Color(models.TextChoices):
     """Lemon storage color progression, in order. Fruit only moves forward."""
 
-    DARK_GREEN = 'DG', 'Dark green'
-    LIGHT_GREEN = 'LG', 'Light green'
-    SILVER = 'S', 'Silver'
-    YELLOW = 'Y', 'Yellow'
+    DARK_GREEN = 'DG', _('Dark green')
+    LIGHT_GREEN = 'LG', _('Light green')
+    SILVER = 'S', _('Silver')
+    YELLOW = 'Y', _('Yellow')
 
 
 COLOR_RANK = {Color.DARK_GREEN: 0, Color.LIGHT_GREEN: 1, Color.SILVER: 2, Color.YELLOW: 3}
@@ -32,10 +44,6 @@ class Plant(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=10, unique=True, help_text='Famous plant code, e.g. SLA1.')
     city = models.CharField(max_length=100, blank=True)
-    report_recipients = models.TextField(
-        blank=True,
-        help_text='Comma-separated email addresses that receive this plant\'s Monday report.',
-    )
     weekly_pack_capacity_bins = models.DecimalField(
         max_digits=9,
         decimal_places=1,
@@ -51,21 +59,39 @@ class Plant(models.Model):
     def __str__(self):
         return f'{self.code} {self.name}'
 
-    def clean(self):
-        invalid = []
-        for email in self.recipient_list:
-            try:
-                validate_email(email)
-            except ValidationError:
-                invalid.append(email)
-        if invalid:
-            raise ValidationError({
-                'report_recipients': f'Invalid email address(es): {", ".join(invalid)}'
-            })
+    @staticmethod
+    def split_recipients(text):
+        """Comma- or semicolon-separated addresses from a form field, deduplicated in order."""
+        return list(dict.fromkeys(e.strip() for e in (text or '').replace(';', ',').split(',') if e.strip()))
 
     @property
     def recipient_list(self):
-        return [e.strip() for e in self.report_recipients.replace(';', ',').split(',') if e.strip()]
+        return [r.email for r in self.report_recipients.all()]
+
+    def set_recipients(self, emails):
+        """Make the recipient rows match `emails` exactly."""
+        wanted = list(dict.fromkeys(e.strip() for e in emails if e and e.strip()))
+        self.report_recipients.exclude(email__in=wanted).delete()
+        existing = set(self.report_recipients.values_list('email', flat=True))
+        PlantReportRecipient.objects.bulk_create(
+            [PlantReportRecipient(plant=self, email=e) for e in wanted if e not in existing]
+        )
+
+
+class PlantReportRecipient(models.Model):
+    """One email address that receives a plant's Monday report. A multi-valued
+    attribute of Plant, held in its own table rather than a comma-separated
+    field so each address is atomic, validated and unique per plant."""
+
+    plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name='report_recipients')
+    email = models.EmailField(max_length=254)
+
+    class Meta:
+        ordering = ['plant__code', 'email']
+        constraints = [models.UniqueConstraint(fields=['plant', 'email'], name='unique_report_recipient_per_plant')]
+
+    def __str__(self):
+        return f'{self.plant.code}: {self.email}'
 
 
 class Room(models.Model):
@@ -85,6 +111,13 @@ class Room(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def setpoint_c(self):
+        """Room setpoint in Celsius, or None when the target is not recorded."""
+        if self.target_temp_f is None:
+            return None
+        return round((float(self.target_temp_f) - 32.0) * 5.0 / 9.0, 1)
+
 
 class Grower(models.Model):
     name = models.CharField(max_length=100)
@@ -103,6 +136,17 @@ class LotQuerySet(models.QuerySet):
 
     def at_plant(self, plant):
         return self.filter(plant=plant) if plant is not None else self
+
+    def with_bin_balance(self):
+        """Compute packed bins in SQL rather than in Python: packed_bins_total
+        is SUM(packout.bins_packed) and packouts_without_bins counts runs that
+        omitted bin usage. Lot.bins_packed and bins_remaining use these when
+        present. Do not chain another multi-valued aggregate onto this
+        queryset; the packout join would multiply its rows."""
+        return self.annotate(
+            packed_bins_total=Sum('packouts__bins_packed'),
+            packouts_without_bins=Count('packouts', filter=Q(packouts__bins_packed__isnull=True)),
+        )
 
     def delete(self):
         raise ValidationError('Lots are never deleted. Set status to packed or dumped instead.')
@@ -168,18 +212,49 @@ class Lot(models.Model):
                 condition=(Q(status='packed') | Q(packed_date__isnull=True)),
                 name='unpacked_lot_has_no_packed_date',
             ),
+            models.CheckConstraint(
+                condition=(Q(harvest_date__isnull=True) | Q(harvest_date__lte=F('receive_date'))),
+                name='harvest_not_after_receipt',
+            ),
         ]
         indexes = [models.Index(fields=['plant', 'status'])]
 
     def __str__(self):
         return f'{self.plant.code} {self.lot_no}'
 
+    # Fields whose edits are written to LotChange. Everything an import or an
+    # admin edit can alter; derived and audit-only fields are excluded.
+    TRACKED_FIELDS = (
+        'grower_id', 'block', 'variety', 'harvest_date', 'receive_date', 'receiving_color',
+        'intake_cci_mean', 'intake_cci_std', 'bins_received', 'current_room_id', 'status',
+        'packed_date', 'notes',
+    )
+
     def delete(self, *args, **kwargs):
         raise ValidationError('Lots are never deleted. Set status to packed or dumped instead.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
+        before = Lot.objects.filter(pk=self.pk).values(*self.TRACKED_FIELDS).first() if self.pk else None
         super().save(*args, **kwargs)
+        if before is None:
+            self.log_changes({'created': (None, self.lot_no)})
+        else:
+            self.log_changes({f: (before[f], getattr(self, f)) for f in self.TRACKED_FIELDS if before[f] != getattr(self, f)})
+
+    def log_changes(self, changes, source=None):
+        """Write one LotChange row per changed field. `changes` maps a field
+        name to (old, new). Attribution comes from lots.audit unless given."""
+        rows = [
+            LotChange(
+                lot=self, field=field, old_value=LotChange.render(old), new_value=LotChange.render(new),
+                changed_by=current_user(), source=source or current_source(),
+            )
+            for field, (old, new) in changes.items() if old != new
+        ]
+        if rows:
+            LotChange.objects.bulk_create(rows)
+        return len(rows)
 
     def clean(self):
         errors = {}
@@ -211,6 +286,10 @@ class Lot(models.Model):
     @property
     def bins_packed(self):
         """Known packed bins, or None when any packout omitted bin usage."""
+        if hasattr(self, 'packouts_without_bins'):  # annotated by LotQuerySet.with_bin_balance
+            if self.packouts_without_bins:
+                return None
+            return self.packed_bins_total if self.packed_bins_total is not None else Decimal('0')
         packouts = list(self.packouts.all())
         if not packouts:
             return Decimal('0')
@@ -233,24 +312,49 @@ class Lot(models.Model):
         return self.status == self.Status.IN_STORAGE and bool(list(self.packouts.all()))
 
 
+class LotChange(models.Model):
+    """Append-only history of edits to a lot: which field, from what, to
+    what, by whom and through which path. Samples, plans and decisions are
+    already versioned; this closes the gap for direct edits to the lot row."""
+
+    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='changes')
+    changed_at = models.DateTimeField(default=timezone.now)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='lot_changes')
+    source = models.CharField(max_length=120, blank=True, help_text='web:<path>, import:<kind>, packout, command:<name>.')
+    field = models.CharField(max_length=40)
+    old_value = models.TextField(blank=True)
+    new_value = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-changed_at', '-id']
+        indexes = [models.Index(fields=['lot', 'changed_at'])]
+
+    def __str__(self):
+        return f'{self.lot_id} {self.field}: {self.old_value!r} -> {self.new_value!r}'
+
+    @staticmethod
+    def render(value):
+        return '' if value is None else str(value)
+
+
 class LotRoomMove(models.Model):
-    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='room_moves')
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name='room_moves')
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name='moves_in')
-    moved_at = models.DateField()
+    moved_on = models.DateField()
     occurred_at = models.DateTimeField(null=True, blank=True, help_text='Actual move timestamp when known. Blank means only the date is known.')
     moved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True
     )
 
     class Meta:
-        ordering = ['-moved_at', '-id']
+        ordering = ['-moved_on', '-id']
         constraints = [
             models.UniqueConstraint(fields=['lot', 'room', 'occurred_at'], name='unique_room_move_timestamp'),
-            models.UniqueConstraint(fields=['lot', 'room', 'moved_at'], condition=Q(occurred_at__isnull=True), name='unique_date_only_room_move'),
+            models.UniqueConstraint(fields=['lot', 'room', 'moved_on'], condition=Q(occurred_at__isnull=True), name='unique_date_only_room_move'),
         ]
 
     def __str__(self):
-        return f'{self.lot} -> {self.room} on {self.moved_at}'
+        return f'{self.lot} -> {self.room} on {self.moved_on}'
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -258,20 +362,20 @@ class LotRoomMove(models.Model):
 
     def clean(self):
         errors = {}
-        if self.occurred_at and timezone.localtime(self.occurred_at).date() != self.moved_at:
+        if self.occurred_at and timezone.localtime(self.occurred_at).date() != self.moved_on:
             errors['occurred_at'] = 'Timestamp and move date must refer to the same local day.'
         if self.lot_id and self.room_id and self.lot.plant_id != self.room.plant_id:
             errors['room'] = 'The room must belong to the lot\'s plant.'
-        if self.lot_id and self.moved_at and self.moved_at < self.lot.receive_date:
-            errors['moved_at'] = 'A room move cannot precede receipt.'
-        if self.lot_id and self.lot.packed_date and self.moved_at > self.lot.packed_date:
-            errors['moved_at'] = 'A room move cannot occur after final packout.'
+        if self.lot_id and self.moved_on and self.moved_on < self.lot.receive_date:
+            errors['moved_on'] = 'A room move cannot precede receipt.'
+        if self.lot_id and self.lot.packed_date and self.moved_on > self.lot.packed_date:
+            errors['moved_on'] = 'A room move cannot occur after final packout.'
         if errors:
             raise ValidationError(errors)
 
     @property
     def effective_at(self):
-        return self.occurred_at or timezone.make_aware(datetime.combine(self.moved_at, time.min))
+        return self.occurred_at or timezone.make_aware(datetime.combine(self.moved_on, time.min))
 
 
 class ImportBatch(models.Model):
@@ -289,7 +393,7 @@ class ImportBatch(models.Model):
     file = models.FileField(upload_to='imports/%Y/%m/', blank=True)
     original_name = models.CharField(max_length=255, blank=True)
     uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True
     )
     plant_scope = models.ForeignKey(
         Plant,
@@ -380,7 +484,7 @@ class LotTreatment(models.Model):
         TWO_FOUR_D = '2_4_d', '2,4-D'
         OTHER = 'other', 'Other'
 
-    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='treatments')
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name='treatments')
     applied_at = models.DateTimeField()
     treatment_type = models.CharField(max_length=12, choices=TreatmentType.choices)
     product = models.CharField(max_length=100, blank=True)
@@ -442,7 +546,7 @@ class Packout(models.Model):
     """What actually packed out of the lot. One row per lot per pack date, so
     a lot packed across two runs has two rows."""
 
-    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name='packouts')
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name='packouts')
     packed_date = models.DateField()
     cartons_fancy = models.PositiveIntegerField(default=0)
     cartons_choice = models.PositiveIntegerField(default=0)
@@ -508,10 +612,37 @@ class Packout(models.Model):
         blank=True,
         help_text='Why fruit went to products (color, decay, size, market, etc.).',
     )
-    cartons_total = models.PositiveIntegerField(default=0, editable=False)
-    fresh_pct = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True, editable=False
+    # Derived columns are generated by the database (PostgreSQL 12+ and
+    # SQLite 3.31+ STORED generated columns), so they can never disagree with
+    # the carton counts they are computed from.
+    cartons_total = models.GeneratedField(
+        expression=F('cartons_fancy') + F('cartons_choice') + F('cartons_standard') + F('cartons_products'),
+        output_field=models.PositiveIntegerField(),
+        db_persist=True,
     )
+    fresh_pct = models.GeneratedField(
+        expression=Case(
+            When(
+                Q(cartons_fancy=0, cartons_choice=0, cartons_standard=0, cartons_products=0),
+                then=Value(None, output_field=models.DecimalField(max_digits=5, decimal_places=2)),
+            ),
+            # Float division on purpose: SQLite's CAST AS NUMERIC keeps whole
+            # numbers as integers and would divide 500 by 600 as 0. Round()
+            # re-casts the float to numeric on PostgreSQL.
+            default=Round(
+                Cast(F('cartons_fancy') + F('cartons_choice') + F('cartons_standard'), models.FloatField())
+                * Value(100.0)
+                / Cast(
+                    F('cartons_fancy') + F('cartons_choice') + F('cartons_standard') + F('cartons_products'),
+                    models.FloatField(),
+                ),
+                2,
+            ),
+            output_field=models.DecimalField(max_digits=5, decimal_places=2),
+        ),
+        output_field=models.DecimalField(max_digits=5, decimal_places=2, null=True),
+        db_persist=True,
+            )
     source_batch = models.ForeignKey(
         ImportBatch, on_delete=models.SET_NULL, null=True, blank=True, related_name='packouts'
     )
@@ -527,17 +658,10 @@ class Packout(models.Model):
     def cartons_fresh(self):
         return self.cartons_fancy + self.cartons_choice + self.cartons_standard
 
-    def compute(self):
-        self.cartons_total = self.cartons_fresh + self.cartons_products
-        if self.cartons_total:
-            self.fresh_pct = round(100 * self.cartons_fresh / self.cartons_total, 2)
-        else:
-            self.fresh_pct = None
-
     def save(self, *args, **kwargs):
-        self.full_clean(exclude=['cartons_total', 'fresh_pct'])
-        self.compute()
+        self.full_clean()
         super().save(*args, **kwargs)
+        self.refresh_from_db(fields=['cartons_total', 'fresh_pct'])
         self.reconcile_lot_status()
 
     def delete(self, *args, **kwargs):
@@ -550,15 +674,14 @@ class Packout(models.Model):
         lot = Lot.objects.get(pk=lot_id or self.lot_id)
         final = Packout.objects.filter(lot=lot, is_final=True).order_by('-packed_date').first()
         if final is not None:
-            Lot.objects.filter(pk=lot.pk).update(
-                status=Lot.Status.PACKED,
-                packed_date=final.packed_date,
-            )
+            new_status, new_date = Lot.Status.PACKED, final.packed_date
         elif lot.status == Lot.Status.PACKED:
-            Lot.objects.filter(pk=lot.pk).update(
-                status=Lot.Status.IN_STORAGE,
-                packed_date=None,
-            )
+            new_status, new_date = Lot.Status.IN_STORAGE, None
+        else:
+            return
+        if (lot.status, lot.packed_date) != (new_status, new_date):
+            Lot.objects.filter(pk=lot.pk).update(status=new_status, packed_date=new_date)
+            lot.log_changes({'status': (lot.status, new_status), 'packed_date': (lot.packed_date, new_date)}, source='packout')
 
     def clean(self):
         errors = {}
@@ -627,6 +750,34 @@ class ModelSettings(models.Model):
     )
     sample_overdue_days = models.PositiveIntegerField(default=10)
     import_gap_days = models.PositiveIntegerField(default=120)
+    sample_fruit_count = models.PositiveIntegerField(
+        default=25,
+        help_text='Fruit inspected for defects in a routine sample. USDA lemon inspection uses 25; ten of them are photographed on the board. '
+                  'When decay meets the flag percent the foreman is asked to inspect a second set and record the combined count.',
+    )
+    warm_storage_temp_c = models.FloatField(
+        default=13.0,
+        help_text='Room setpoint (°C) at or above which storage days count toward the rot-risk clock. Lemons hold 4-6 months near 10 °C but 1-2 months at 13 °C.',
+    )
+    warm_weeks_flag = models.PositiveIntegerField(
+        default=8,
+        help_text='Weeks at or above the warm threshold at which the rot-risk clock is flagged on the board.',
+    )
+    temperature_response = models.BooleanField(
+        default=True,
+        help_text='Scale prior degreening rates by the room setpoint using the bell-shaped temperature response (fastest near 15 °C, slow at 5 °C, halted near 25 °C). Fitted slopes are never scaled.',
+    )
+
+    class CorrectionMethod(models.TextChoices):
+        LINEAR = 'linear', 'Linear 3x3 matrix on all nine patches'
+        CURVE = 'curve', 'Per-channel grey-ramp curve, then linear matrix'
+
+    color_correction_method = models.CharField(
+        max_length=8,
+        choices=CorrectionMethod.choices,
+        default=CorrectionMethod.LINEAR,
+        help_text='Photo color correction. The curve option first matches each channel through the six grey patches (tone/gamma), then fits the matrix. Photos already scored keep their method until rescored.',
+    )
 
     class Meta:
         verbose_name = 'model settings'
@@ -652,6 +803,10 @@ class ModelSettings(models.Model):
             errors['decay_flag_pct'] = 'Decay alert percent must be between 0 and 100.'
         if self.max_horizon_days < 1:
             errors['max_horizon_days'] = 'Forecast horizon must be at least one day.'
+        if not 1 <= self.sample_fruit_count <= 100:
+            errors['sample_fruit_count'] = 'Inspect between 1 and 100 fruit per sample.'
+        if self.warm_weeks_flag < 1:
+            errors['warm_weeks_flag'] = 'The warm-storage flag must be at least one week.'
         if errors:
             raise ValidationError(errors)
 

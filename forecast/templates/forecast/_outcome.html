@@ -1,0 +1,3 @@
+{% if r.outcome.status == 'packed' %}<span class="flag ok">Packed {{ r.outcome.date|date:'M j' }}</span>{% if r.outcome.days_after_pack_by is not None %}<br><span class="small {% if r.outcome.days_after_pack_by > 0 %}muted{% endif %}">{% if r.outcome.days_after_pack_by > 0 %}{{ r.outcome.days_after_pack_by }} d after pack-by{% elif r.outcome.days_after_pack_by == 0 %}on pack-by day{% else %}{{ r.outcome.days_abs }} d before pack-by{% endif %}</span>{% endif %}
+{% elif r.outcome.status == 'dumped' %}<span class="flag red">Dumped</span>
+{% else %}<span class="muted">In storage</span>{% if r.outcome.days_after_pack_by %}<br><span class="flag red">{{ r.outcome.days_after_pack_by }} d past pack-by</span>{% endif %}{% endif %}
